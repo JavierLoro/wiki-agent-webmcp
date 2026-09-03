@@ -44,7 +44,7 @@ Structured workspace data is authoritative. Conversational memory supports conti
 
 ## Run locally
 
-Requirements: Node.js 20 or newer and a build toolchain supported by `better-sqlite3`.
+Requirements: Node.js 22 or newer and a build toolchain supported by `better-sqlite3`.
 
 ```bash
 npm install
@@ -67,6 +67,70 @@ npm start
 ```
 
 `npm run check` type-checks both client and server and creates the Vite production bundle. When `dist/` exists, the Express server serves it alongside `/api`.
+
+## Docker deployment
+
+The production image contains the compiled React frontend and Express backend in one service. SQLite remains on the host through the explicit `./data:/data` bind mount.
+
+```bash
+cp .env.example .env
+# Edit .env and set OPENAI_API_KEY. Keep it server-side.
+docker compose up -d --build
+docker compose logs -f
+```
+
+Routine operations:
+
+```bash
+docker compose restart
+docker compose down
+docker compose up -d
+```
+
+From another machine, replace `SERVER_IP` with the Debian VM or LXC address:
+
+- Application: `http://SERVER_IP:3001`
+- Health check: `http://SERVER_IP:3001/api/health`
+
+`HOST_PORT` controls the host port and defaults to `3001`; `PORT` controls the single internal HTTP listener and also defaults to `3001`.
+
+### SQLite persistence and backup
+
+The database is stored at `./data/wiki-agent.db` on the Docker host. Both `docker compose restart` and `docker compose down` followed by `docker compose up -d` preserve it.
+
+Do not delete `./data`. Do not use `docker compose down -v` when you intend to preserve state. The bind mount is intentionally visible on the host to simplify backup and migration.
+
+For a consistent backup before judging or updating, briefly stop the service, copy the complete data directory, and start it again:
+
+```bash
+docker compose stop wiki-agent
+cp -a data "data-backup-$(date +%Y%m%d-%H%M%S)"
+docker compose start wiki-agent
+```
+
+Stopping the writer ensures the SQLite database and any WAL files form a consistent copy.
+
+## Proxmox and Cloudflare Tunnel
+
+Run Docker Compose inside a Debian-based Proxmox VM or LXC with nesting and Docker support. No Nginx, Traefik, certificate, or HTTPS listener is included in this project.
+
+```text
+Internet
+   ↓
+Cloudflare Tunnel
+   ↓
+http://IP_LXC_O_VM:3001
+   ↓
+Docker Compose
+   ↓
+Wiki Agent
+   ↓
+SQLite at ./data/wiki-agent.db
+```
+
+In Cloudflare Tunnel, publish a hostname such as `wiki-agent.example.com` and point its HTTP service to `http://IP_DEL_SERVIDOR:3001`. Cloudflare provides the public HTTPS reverse proxy and TLS termination; the container exposes only HTTP on the internal network.
+
+The challenge deployment intentionally has no authentication. Restrict direct access to port 3001 at the network/firewall layer as appropriate and expose the public application through the tunnel.
 
 ## Try the collaboration flow
 
@@ -127,7 +191,8 @@ Relevant history:
 | `OPENAI_API_KEY` | Server-only credential for the internal agent | none |
 | `OPENAI_MODEL` | Model used by the internal agent | `gpt-5.4` |
 | `PORT` | Express server port | `3001` |
-| `DATABASE_PATH` | SQLite database location | `./data/wiki-agent.db` |
+| `HOST_PORT` | Host port published by Docker Compose | `3001` |
+| `DATABASE_PATH` | SQLite path (`/data/wiki-agent.db` in Docker) | `./data/wiki-agent.db` locally |
 
 Never place the API key in HTML, browser code, or a `VITE_` variable.
 

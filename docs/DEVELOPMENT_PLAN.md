@@ -23,15 +23,13 @@
 7. In a WebMCP-capable environment, read context, add a decision, create a task, and confirm the dashboard and internal agent both see the changes.
 8. Run `npm run check`, then `npm start`; confirm `/` and `/api/health` work from the production server.
 
-## Render deployment
+## Docker deployment on Proxmox
 
-- Build command: `npm install && npm run build`
-- Start command: `npm start`
-- Environment: `OPENAI_API_KEY`, `OPENAI_MODEL`, `DATABASE_PATH`
-- Recommended database path: `/var/data/wiki-agent.db`
-- Mount a persistent disk at `/var/data`
-
-Do not rely on Render's ordinary filesystem for production persistence. Test the deployed HTTPS origin because WebMCP requires a secure context.
+- Copy `.env.example` to `.env` and configure the server-only OpenAI key.
+- Run `docker compose up -d --build` inside the Debian VM or LXC.
+- Persist SQLite through `./data:/data`; the container uses `/data/wiki-agent.db`.
+- Publish the single HTTP origin through Cloudflare Tunnel, which provides public HTTPS and TLS termination.
+- Test persistence after both a restart and `docker compose down` followed by `docker compose up -d`.
 
 ## Submission order
 

@@ -28,6 +28,7 @@ The public demo uses shared SQLite workspace state. Use **Reset demo** before te
 
 - Replace both TODO links above.
 - Confirm `OPENAI_API_KEY` is configured only on the server.
-- Confirm `DATABASE_PATH` points to persistent storage (for Render: `/var/data/wiki-agent.db` mounted at `/var/data`).
+- Confirm Docker Compose mounts `./data:/data` and sets `DATABASE_PATH=/data/wiki-agent.db`.
+- Confirm Cloudflare Tunnel publishes the final HTTPS hostname to the Debian VM/LXC HTTP service on port 3001.
 - Exercise all ten WebMCP tools against the deployed HTTPS application.
 - Restart the service after a mutation and verify that SQLite state persists.
