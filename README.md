@@ -82,7 +82,7 @@ The production image contains the compiled React frontend and Express backend in
 
 ```bash
 cp .env.example .env
-# Edit .env and set OPENAI_API_KEY. Keep it server-side.
+# Edit .env: set APP_PASSWORD and APP_SESSION_SECRET. Set OPENAI_API_KEY if needed.
 docker compose up -d --build
 docker compose logs -f
 ```
@@ -105,6 +105,10 @@ From another machine, replace `SERVER_IP` with the Debian VM or LXC address:
 ### SQLite persistence and backup
 
 The database is stored at `./data/wiki-agent.db` on the Docker host. Both `docker compose restart` and `docker compose down` followed by `docker compose up -d` preserve it.
+
+### Access password
+
+The dashboard and every data API route require the single password configured as `APP_PASSWORD`. Generate `APP_SESSION_SECRET` with `openssl rand -hex 32`; it signs a 30-day persistent, `HttpOnly`, `SameSite=Strict` session cookie. Cloudflare Tunnel marks the cookie `Secure` on public HTTPS requests, while local HTTP remains usable for server checks. `/api/health` and the login/session endpoints stay public. Never use a `VITE_` prefix for either secret.
 
 Do not delete `./data`. Do not use `docker compose down -v` when you intend to preserve state. The bind mount is intentionally visible on the host to simplify backup and migration.
 
@@ -200,6 +204,8 @@ Relevant history:
 | --- | --- | --- |
 | `OPENAI_API_KEY` | Server-only credential for the internal agent | none |
 | `OPENAI_MODEL` | Model used by the internal agent | `gpt-5.4` |
+| `APP_PASSWORD` | Password required to access the application | required |
+| `APP_SESSION_SECRET` | Random server-only key used to sign persistent sessions | required |
 | `PORT` | Express server port | `3001` |
 | `HOST_PORT` | Host port published by Docker Compose | `3001` |
 | `DATABASE_PATH` | SQLite path (`/data/wiki-agent.db` in Docker) | `./data/wiki-agent.db` locally |

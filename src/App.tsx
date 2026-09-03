@@ -1,5 +1,5 @@
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { approveDecisionProposal, chatWithWikiAgent, createWorkspace, getWorkspaceById, listWorkspaces, rejectDecisionProposal, resetDemo, updateTask } from "./api";
+import { approveDecisionProposal, chatWithWikiAgent, createWorkspace, getAuthSession, getWorkspaceById, listWorkspaces, login, logout, rejectDecisionProposal, resetDemo, updateTask } from "./api";
 import { isWebMCPAvailable, WEBMCP_STATUS_EVENT } from "./webmcp";
 import type { ActivityEvent, AgentRun, Decision, DecisionProposal, KnowledgeItem, Task, TaskStatus, Workspace, WorkspaceSummary } from "./types";
 
@@ -28,6 +28,14 @@ function Icon({ name }: { name: "grid" | "folder" | "book" | "spark" | "reset" |
 }
 
 export default function App() {
+  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
+  useEffect(() => { void getAuthSession().then((result) => setAuthenticated(result.authenticated)).catch(() => setAuthenticated(false)); }, []);
+  if (authenticated === null) return <LoadingScreen />;
+  if (!authenticated) return <LoginScreen onAuthenticated={() => setAuthenticated(true)} />;
+  return <WorkspaceApp onLogout={() => void logout().finally(() => setAuthenticated(false))} />;
+}
+
+function WorkspaceApp({ onLogout }: { onLogout: () => void }) {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
   const [tab, setTab] = useState<Tab>("tasks");
@@ -173,11 +181,12 @@ export default function App() {
           <div className={`protocol-state ${webMcpAvailable ? "connected" : "unavailable"}`}><span className="status-dot" />WebMCP {webMcpAvailable ? "connected" : "unavailable"}</div>
           <p className="protocol-copy">Workspace tools available to browser agents.</p>
           <button className="ghost-button" onClick={handleReset} disabled={resetting}><Icon name="reset" />{resetting ? "Resetting…" : "Reset demo"}</button>
+          <button className="logout-button" onClick={onLogout}>Sign out</button>
         </div>
       </aside>
 
       <main className="main" id="main-content">
-        <header className="mobile-header"><span className="brand-mark mini">W</span><strong>Wiki Agent</strong><div className="mobile-actions"><button className="mobile-new" onClick={() => setShowNewWorkspace(true)}>+ New workspace</button><button className="mobile-reset" onClick={handleReset} aria-label="Reset demo"><Icon name="reset" /></button></div></header>
+        <header className="mobile-header"><span className="brand-mark mini">W</span><strong>Wiki Agent</strong><div className="mobile-actions"><button className="mobile-new" onClick={() => setShowNewWorkspace(true)}>+ New workspace</button><button className="mobile-reset" onClick={handleReset} aria-label="Reset demo"><Icon name="reset" /></button><button className="mobile-signout" onClick={onLogout}>Sign out</button></div></header>
         <section className="project-header">
           <div><div className="eyebrow"><span />Active workspace · {formatWorkspaceType(workspace.workspace.type)}</div><h1>{workspace.workspace.name}</h1><p>{workspace.workspace.description || "A durable workspace ready for human-agent collaboration."}</p><small className="product-positioning">Persistent shared workspaces for humans and AI agents. Create a workspace, then collaborate on the same durable state.</small></div>
           <span className="status-pill"><span />{workspace.workspace.status}</span>
@@ -244,6 +253,35 @@ export default function App() {
       </div>}
     </div>
   );
+}
+
+function LoginScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!password || submitting) return;
+    setSubmitting(true); setError("");
+    try { await login(password); onAuthenticated(); }
+    catch (err) { setError(err instanceof Error ? err.message : "Could not sign in."); }
+    finally { setSubmitting(false); }
+  }
+  return <main className="login-page">
+    <section className="login-card" aria-labelledby="login-title">
+      <span className="brand-mark login-mark">W</span>
+      <p className="eyebrow">Private workspace</p>
+      <h1 id="login-title">Welcome back</h1>
+      <p>Your projects and shared agent memory are protected.</p>
+      <form onSubmit={submit}>
+        <label htmlFor="app-password">Password</label>
+        <input id="app-password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} autoFocus />
+        {error && <p className="login-error" role="alert">{error}</p>}
+        <button type="submit" disabled={!password || submitting}>{submitting ? "Signing in…" : "Sign in"}</button>
+      </form>
+      <small>Session stays active on this browser for 30 days.</small>
+    </section>
+  </main>;
 }
 
 function Stat({ label, value, tone }: { label: string; value: number; tone: string }) { return <article className={`stat-card ${tone}`}><span>{label}</span><strong>{String(value).padStart(2, "0")}</strong><i /></article>; }

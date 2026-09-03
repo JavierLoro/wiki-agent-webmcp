@@ -23,6 +23,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return data as T;
 }
 
+export const getAuthSession = () => request<{ authenticated: boolean }>("/api/auth/session");
+export const login = (password: string) => request<{ authenticated: true; expiresInDays: number }>("/api/auth/login", { method: "POST", body: JSON.stringify({ password }) });
+export const logout = () => request<{ authenticated: false }>("/api/auth/logout", { method: "POST" });
+
 export const getWorkspace = () => request<Workspace>("/api/bootstrap");
 export const listWorkspaces = () => request<WorkspaceSummary[]>("/api/workspaces");
 export const createWorkspace = (input: { name: string; type: "general" | "software_project" | "hardware_project" | "research" | "organization" | "event"; description?: string }) =>
