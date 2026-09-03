@@ -104,7 +104,7 @@ function WorkspaceApp({ onLogout }: { onLogout: () => void }) {
   async function handleReset() {
     if (resetting || !window.confirm("Reset the workspace to its original demo data?")) return;
     setResetting(true);
-    try { await resetDemo(); setTab("tasks"); const items=await listWorkspaces(); setWorkspaces(items); const initial=items.find((item)=>item.slug==="compa-friki")??items[0]; if(initial) await loadWorkspace(initial.id,true); }
+    try { await resetDemo(); setTab("tasks"); const items=await listWorkspaces(); setWorkspaces(items); const initial=items.find((item)=>item.slug==="esigglol")??items[0]; if(initial) await loadWorkspace(initial.id,true); }
     catch (err) { setError(err instanceof Error ? err.message : "Could not reset the demo."); }
     finally { setResetting(false); }
   }
