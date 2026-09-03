@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { analyzeProjectImport, approveDecisionProposal, confirmProjectImport, createWorkspace, generateBriefing, getAuthSession, getProjectImport, getWorkspaceById, listWorkspaces, login, logout, rejectDecisionProposal, resetDemo, updateTask } from "./api";
 import { isWebMCPAvailable, WEBMCP_STATUS_EVENT } from "./webmcp";
 import type { ActivityEvent, AgentRun, AnalysisMode, AnalysisSection, Decision, DecisionProposal, ImportAnalysis, KnowledgeItem, Task, TaskStatus, Workspace, WorkspaceSummary } from "./types";
@@ -41,7 +41,6 @@ function WorkspaceApp({ onLogout }: { onLogout: () => void }) {
   const [tab, setTab] = useState<Tab>("tasks");
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode>("overview");
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [briefingRunning, setBriefingRunning] = useState(false);
   const [handoffCopied, setHandoffCopied] = useState(false);
@@ -57,12 +56,65 @@ function WorkspaceApp({ onLogout }: { onLogout: () => void }) {
   const [importAnalysis, setImportAnalysis] = useState<ImportAnalysis | null>(null);
   const [importBusy, setImportBusy] = useState(false);
 
-  const loadWorkspace = useCallback(async (workspaceId: string, quiet = false) => {
-    if (quiet) setRefreshing(true);
-    try { setWorkspace(await getWorkspaceById(workspaceId)); setError(null); }
-    catch (err) { setError(err instanceof Error ? err.message : "Unable to load workspace."); }
-    finally { setLoading(false); setRefreshing(false); }
+  const workspaceRequest = useRef<{ id: string; controller: AbortController } | null>(null);
+  const requestedWorkspaceId = useRef<string | null>(null);
+  const sidebarBusy = useRef(false);
+  const mounted = useRef(true);
+  const activeWorkspaceId = workspace?.workspace.id;
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; workspaceRequest.current?.controller.abort(); };
   }, []);
+
+  const refreshSidebar = useCallback(async () => {
+    if (sidebarBusy.current) return;
+    sidebarBusy.current = true;
+    try {
+      const items = await listWorkspaces();
+      if (mounted.current) setWorkspaces((previous) => JSON.stringify(previous) === JSON.stringify(items) ? previous : items);
+    } catch { /* Background refresh failures are retried without disturbing the UI. */ }
+    finally { sidebarBusy.current = false; }
+  }, []);
+
+  const loadWorkspace = useCallback(async (workspaceId: string, quiet = false) => {
+    if (workspaceRequest.current?.id === workspaceId) return;
+    workspaceRequest.current?.controller.abort();
+    const controller = new AbortController();
+    requestedWorkspaceId.current = workspaceId;
+    workspaceRequest.current = { id: workspaceId, controller };
+    try {
+      const next = await getWorkspaceById(workspaceId, controller.signal);
+      if (!controller.signal.aborted && mounted.current) {
+        setWorkspace((previous) => JSON.stringify(previous) === JSON.stringify(next) ? previous : next);
+        if (!quiet) setError(null);
+      }
+    } catch (err) {
+      if (!quiet && !controller.signal.aborted && mounted.current) setError(err instanceof Error ? err.message : "Unable to load workspace.");
+    } finally {
+      if (workspaceRequest.current?.controller === controller) {
+        workspaceRequest.current = null;
+        if (mounted.current) setLoading(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!activeWorkspaceId) return;
+    let ticks = 0;
+    const poll = () => {
+      if (document.visibilityState !== "visible" || requestedWorkspaceId.current !== activeWorkspaceId) return;
+      void loadWorkspace(activeWorkspaceId, true);
+      // Sidebar counts need less frequent updates than the selected workspace.
+      if (ticks++ % 4 === 0) void refreshSidebar();
+    };
+    const timer = window.setInterval(poll, 1500);
+    document.addEventListener("visibilitychange", poll);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", poll);
+    };
+  }, [activeWorkspaceId, loadWorkspace, refreshSidebar]);
 
   useEffect(() => {
     void listWorkspaces().then((items) => {
@@ -77,8 +129,8 @@ function WorkspaceApp({ onLogout }: { onLogout: () => void }) {
   useEffect(() => {
     const handler = (event: Event) => {
       const targetId = (event as CustomEvent<{ workspaceId?: string }>).detail?.workspaceId;
-      if (workspace && (!targetId || targetId === workspace.workspace.id || targetId === workspace.workspace.slug)) void loadWorkspace(workspace.workspace.id, true);
-      void listWorkspaces().then(setWorkspaces);
+      if (workspace && requestedWorkspaceId.current === workspace.workspace.id && (!targetId || targetId === workspace.workspace.id || targetId === workspace.workspace.slug)) void loadWorkspace(workspace.workspace.id, true);
+      void refreshSidebar();
     };
     const statusHandler = (event: Event) => setWebMcpAvailable(Boolean((event as CustomEvent<{ available: boolean }>).detail.available));
     const importHandler = (event: Event) => { const analysis=(event as CustomEvent<ImportAnalysis>).detail;if(analysis?.id){setImportAnalysis(analysis);setShowImport(true);} };
@@ -86,7 +138,7 @@ function WorkspaceApp({ onLogout }: { onLogout: () => void }) {
     window.addEventListener(WEBMCP_STATUS_EVENT, statusHandler);
     window.addEventListener("wikiagent:import-ready", importHandler);
     return () => { window.removeEventListener("wikiagent:changed", handler); window.removeEventListener(WEBMCP_STATUS_EVENT, statusHandler); window.removeEventListener("wikiagent:import-ready", importHandler); };
-  }, [loadWorkspace, workspace]);
+  }, [loadWorkspace, refreshSidebar, workspace]);
 
   const stats = useMemo(() => ({
     open: workspace?.tasks.filter((item) => item.status !== "done").length ?? 0,
@@ -223,7 +275,6 @@ function WorkspaceApp({ onLogout }: { onLogout: () => void }) {
             </section>
             <div className="tabs" role="tablist" aria-label="Workspace sections">
               {tabs.map((item) => <button key={item.id} id={`tab-${item.id}`} role="tab" aria-selected={tab === item.id} aria-controls="workspace-content" className={tab === item.id ? "tab active" : "tab"} onClick={() => { setTab(item.id); if (item.id !== "runs") setAnalysisMode(item.id); }}>{item.label}<span>{item.id === "tasks" ? workspace.tasks.length : item.id === "decisions" ? workspace.decisions.length : item.id === "knowledge" ? workspace.knowledge.length : item.id === "activity" ? workspace.activity.length : workspace.agentRuns.length}</span></button>)}
-              {refreshing && <span className="syncing" aria-label="Syncing workspace" />}
             </div>
             <div className="panel-body" id="workspace-content" role="tabpanel" aria-labelledby={`tab-${tab}`}>
               {tab === "tasks" && <TaskList tasks={workspace.tasks} changingTask={changingTask} onStatus={handleTaskStatus} />}

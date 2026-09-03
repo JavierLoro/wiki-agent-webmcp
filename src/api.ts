@@ -34,7 +34,7 @@ export const createWorkspace = (input: { name: string; type: "general" | "softwa
 export const analyzeProjectImport = (repositoryUrl: string, additionalContext?: string) => request<ImportAnalysis>("/api/imports/analyze", { method: "POST", body: JSON.stringify({ repositoryUrl, ...(additionalContext?.trim() ? { additionalContext: additionalContext.trim() } : {}) }) });
 export const getProjectImport = (importId: string) => request<ImportAnalysis>(`/api/imports/${encodeURIComponent(importId)}`);
 export const confirmProjectImport = (importId: string) => request<WorkspaceInfo | { workspace: WorkspaceInfo }>(`/api/imports/${encodeURIComponent(importId)}/confirm`, { method: "POST" });
-export const getWorkspaceById = (workspaceId: string) => request<Workspace>(`/api/workspaces/${encodeURIComponent(workspaceId)}/context`);
+export const getWorkspaceById = (workspaceId: string, signal?: AbortSignal) => request<Workspace>(`/api/workspaces/${encodeURIComponent(workspaceId)}/context`, { signal });
 export const getWorkspaceChildren = (workspaceId: string) => request<WorkspaceInfo[]>(`/api/workspaces/${encodeURIComponent(workspaceId)}/children`);
 export const getWorkspaceActivity = (workspaceId: string) => request<ActivityEvent[]>(`/api/workspaces/${encodeURIComponent(workspaceId)}/activity`);
 
