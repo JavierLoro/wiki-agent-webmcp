@@ -2,9 +2,11 @@
 
 ## MVP acceptance checklist
 
-- Dashboard renders seeded project state.
+- First screen explains the workspace-first difference and shows activity.
 - Workspaces, tasks, decisions, typed knowledge, runs, and agent sessions persist in SQLite.
-- Six WebMCP tools register in a compatible secure browser context.
+- The final ten `workspace.*` tools register in a compatible secure context.
+- Multi-workspace discovery and child traversal work.
+- Proposal and confirmation remain visibly separate.
 - WebMCP writes immediately refresh the UI.
 - The internal Wiki Agent reads the same state and retains its session.
 - Demo reset is repeatable.

@@ -19,8 +19,10 @@ Information precedence is: explicit human decision, structured workspace state, 
 Workspace (type, context, optional parent)
 ├── Tasks
 ├── Decisions
+├── Decision Proposals
 ├── Knowledge Items
 ├── Child Workspaces
+├── Activity Events
 ├── Agent Runs
 └── Agent Session
 ```
@@ -46,6 +48,25 @@ Wiki Agent UI → POST /api/agent/chat → persistent Session → Wiki Agent
 ```
 
 Agent runs and session items are persisted independently from structured project entities.
+
+## Human-reviewed decisions
+
+```text
+Agent proposes
+      │
+      ▼
+Pending Proposal
+      │
+ Human review
+  ┌───┴───┐
+  ▼       ▼
+Approve  Reject
+  │
+  ▼
+Confirmed Decision
+```
+
+Approval is transactional: a pending proposal becomes approved and creates exactly one authoritative decision. Rejected and already-reviewed proposals cannot be approved later through the same operation.
 
 ## Why semantic tools
 

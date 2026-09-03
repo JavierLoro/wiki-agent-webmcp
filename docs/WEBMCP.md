@@ -1,25 +1,29 @@
-# WebMCP Integration
+# WebMCP Contract
 
 ## Goal
 
-Expose project capabilities—not UI mechanics—to browser agents. The application remains fully usable when `document.modelContext` is unavailable.
+Expose workspace capabilities—not UI mechanics—to browser agents. The application remains fully usable when `document.modelContext` is unavailable.
 
 ## Registered tools
 
 | Tool | Mode | Purpose |
 | --- | --- | --- |
+| `workspace.list` | Read | Discover available workspaces |
 | `workspace.get_context` | Read | Return the workspace, tasks, decisions, knowledge, children, activity, and recent runs |
+| `workspace.get_children` | Read | Traverse the workspace hierarchy |
 | `workspace.get_open_items` | Read | Return unfinished work for planning and blocker discovery |
 | `workspace.get_activity` | Read | Return recent activity across the workspace |
 | `workspace.create_task` | Write | Create actionable workspace work |
 | `workspace.update_task` | Write | Change a task's status or priority |
-| `workspace.add_decision` | Write | Record an explicit, human-approved decision |
+| `workspace.propose_decision` | Write | Record a recommendation awaiting approval |
+| `workspace.add_decision` | Write | Record a decision the human has explicitly made or approved |
 | `workspace.add_knowledge` | Write | Store a typed note, finding, question, requirement, hypothesis, or reference |
 
 Example task input:
 
 ```json
 {
+  "workspaceId": "compa-friki",
   "title": "Validate battery dimensions",
   "description": "Measure the physical cell before enclosure revision.",
   "priority": "high"
@@ -30,13 +34,14 @@ Example decision input:
 
 ```json
 {
+  "workspaceId": "compa-friki",
   "title": "Battery selection",
   "decision": "Use LP102228 for the prototype.",
   "rationale": "It meets current capacity and enclosure constraints."
 }
 ```
 
-Suggestions and hypotheses must not be persisted as decisions without explicit approval.
+`workspace.propose_decision` creates a non-authoritative proposal for human review. `workspace.add_decision` writes an authoritative decision and is only appropriate after the human has explicitly made or approved it. Findings and hypotheses belong in typed knowledge.
 
 ## Progressive enhancement and synchronization
 

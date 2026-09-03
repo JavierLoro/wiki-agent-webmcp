@@ -10,7 +10,7 @@ Show the seeded Compa Friki workspace—tasks, decisions, typed knowledge, activ
 
 In a WebMCP-capable environment, ask:
 
-> Inspect this project and tell me where we left it. Don't modify anything yet.
+> List workspaces, inspect hardware, and summarize unresolved items and recent activity. Don't modify anything.
 
 Expected: `workspace.get_context` or `workspace.get_open_items`, followed by a grounded summary.
 
@@ -18,7 +18,7 @@ Expected: `workspace.get_context` or `workspace.get_open_items`, followed by a g
 
 Ask:
 
-> We've decided to use the LP102228 battery for the prototype. Record that decision and create a high-priority task to physically verify its dimensions before modifying the enclosure.
+> Propose LP102228 as the battery, add its dimensions as a finding, and create a verification task. Do not confirm it.
 
 Expected: `workspace.add_decision` and `workspace.create_task`. Keep the dashboard visible so the audience sees it refresh. Emphasize that the platform exposed workspace operations rather than asking the agent to click controls.
 

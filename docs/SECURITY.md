@@ -12,14 +12,14 @@ An agent should receive no more authority through WebMCP than the current user h
 
 ## Human decisions
 
-`workspace.add_decision` is reserved for decisions the human has explicitly made or approved. Agents must not turn a suggestion, hypothesis, or recommendation into durable workspace policy automatically.
+`workspace.propose_decision` records advice awaiting review. `workspace.add_decision` is reserved for a decision the human has already made or explicitly approved. Approving a pending proposal is enforced structurally: the review operation atomically creates one confirmed decision and records its provenance.
 
 ## Prompt injection and untrusted content
 
-Notes and other stored text are data, not instructions. Tool descriptions must never interpolate user-created content. A production agent should mark retrieved content as untrusted, keep system instructions separate, require approval for sensitive writes, and constrain tool access by role.
+Knowledge items and other stored text are data, not instructions. Tool descriptions must never interpolate user-created content. A production agent should mark retrieved content as untrusted, keep system instructions separate, require approval for sensitive writes, and constrain tool access by role.
 
 ## Auditability and recovery
 
-Internal Wiki Agent executions are recorded in `agent_runs`. Production should also record every WebMCP mutation with actor, tool, arguments, result, timestamp, user, and project. Add reversible changes or snapshots before enabling broader autonomy.
+Internal Wiki Agent executions are recorded in `agent_runs`. Relevant human, WebMCP, agent, and system changes are persisted in `activity_events` with actor, source, entity, summary, and metadata. Add reversible changes or snapshots before enabling broader autonomy.
 
 Suggested roles are `OWNER`, `EDITOR`, `VIEWER`, and `AGENT`, with explicitly granted tool subsets for agents.

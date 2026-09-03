@@ -1,8 +1,8 @@
-# Wiki Agent
+# Workspace Platform
 
-**Shared persistent memory for humans and AI agents.**
+**Persistent shared context for humans and AI agents.**
 
-Wiki Agent is the persistent agent for a shared Workspace Platform built for the WebMCP Challenge. The platform—not any individual agent—is the source of truth for people, browser agents, and internal agents.
+Workspace Platform makes durable work—not a conversation—the source of truth. Humans, browser agents, Wiki Agent, and future specialist agents consume hierarchical workspace state.
 
 > One persistent workspace. Many agents.
 
@@ -12,12 +12,20 @@ Workspaces outlive conversations. They preserve tasks, decisions, typed knowledg
 
 A person works through the visual dashboard. A browser agent discovers semantic operations through WebMCP. The server-side Wiki Agent uses the same SQLite data and retains its conversation between restarts. Changes made by any actor become visible to the others.
 
-## What WebMCP exposes
+## Final WebMCP surface
 
-- `workspace.get_context`, `workspace.get_open_items`, and `workspace.get_activity` for grounded reading
-- `workspace.create_task` and `workspace.update_task` for actionable work
-- `workspace.add_decision` for explicitly approved decisions
-- `workspace.add_knowledge` for typed durable knowledge
+1. `workspace.list`
+2. `workspace.get_context`
+3. `workspace.get_children`
+4. `workspace.get_open_items`
+5. `workspace.get_activity`
+6. `workspace.create_task`
+7. `workspace.update_task`
+8. `workspace.propose_decision`
+9. `workspace.add_decision`
+10. `workspace.add_knowledge`
+
+Recommendations remain proposals until explicit human approval authorizes confirmation.
 
 These are domain operations, not automated clicks. WebMCP is progressive enhancement: the React interface remains usable in browsers that do not expose `document.modelContext`.
 
@@ -30,7 +38,7 @@ Human ──► React dashboard ──► Express API ──► SQLite
 Browser agent ── WebMCP tools      └── Wiki Agent + persistent session
 ```
 
-Structured project data is authoritative. Conversational memory supports continuity but never silently overrides recorded project state.
+Structured workspace data is authoritative. Conversational memory supports continuity but never silently overrides recorded workspace state.
 
 ## Run locally
 
@@ -62,7 +70,7 @@ npm start
 
 In a WebMCP-capable browser environment, open the deployed app and ask:
 
-> Inspect this project and tell me where we left it. Don't modify anything yet.
+> List the workspaces, inspect hardware, and summarize unresolved work and recent activity. Don't modify anything yet.
 
 Then:
 
