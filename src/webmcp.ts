@@ -1,153 +1,29 @@
-import { addDecision, addKnowledge, createTask, getWorkspace, updateTask } from "./api";
-import type { TaskPriority, TaskStatus } from "./types";
+import { addDecision, addKnowledge, createTask, getWorkspaceActivity, getWorkspaceById, getWorkspaceChildren, listWorkspaces, proposeDecision, updateTask } from "./api";
+import type { KnowledgeType, TaskPriority, TaskStatus } from "./types";
 
-const changed = () => window.dispatchEvent(new CustomEvent("wikiagent:changed"));
+export const WEBMCP_STATUS_EVENT = "wikiagent:webmcp-status";
+export const isWebMCPAvailable = () => Boolean(document.modelContext);
+const changed = (workspaceId: string) => window.dispatchEvent(new CustomEvent("wikiagent:changed", { detail: { workspaceId } }));
+const schema = (properties: Record<string, unknown>, required: string[] = []) => ({ type: "object", properties, required, additionalProperties: false });
+const workspaceId = { type: "string", minLength: 1, description: "Workspace ID or slug. Choose explicitly; never infer it from the visible UI." };
+const storedRead = { readOnlyHint: true, untrustedContentHint: true };
 
 export function registerWikiAgentWebMCP(): AbortController {
   const controller = new AbortController();
   const context = document.modelContext;
+  queueMicrotask(() => window.dispatchEvent(new CustomEvent(WEBMCP_STATUS_EVENT, { detail: { available: Boolean(context) } })));
+  if (!context) return controller;
+  const register = (tool: WebMCPTool) => void context.registerTool(tool, { signal: controller.signal }).catch((error: unknown) => { if (!controller.signal.aborted) console.error(`Could not register ${tool.name}`, error); });
 
-  if (!context) {
-    console.info("WebMCP is unavailable; Wiki Agent continues in browser-only mode.");
-    return controller;
-  }
-
-  const register = (tool: WebMCPTool) => {
-    void context.registerTool(tool, { signal: controller.signal }).catch((error: unknown) => {
-      if (!controller.signal.aborted) console.error(`Could not register ${tool.name}`, error);
-    });
-  };
-
-  register({
-    name: "workspace.get_context",
-    title: "Get workspace context",
-    description: "Read the complete current workspace including metadata, tasks, decisions, typed knowledge, recent agent runs, and activity. Use this before reasoning about its status.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
-    annotations: { readOnlyHint: true },
-    execute: async () => JSON.stringify(await getWorkspace()),
-  });
-
-  register({
-    name: "workspace.get_open_items",
-    title: "Get open work",
-    description: "Return all unfinished workspace tasks. Use this to identify blockers, prioritize work, or resume the workspace.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
-    annotations: { readOnlyHint: true },
-    execute: async () => JSON.stringify((await getWorkspace()).tasks.filter((task) => task.status !== "done")),
-  });
-
-  register({
-    name: "workspace.create_task",
-    title: "Create workspace task",
-    description: "Create a concrete task in the current workspace when the user asks to record actionable work.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        title: { type: "string", description: "Short, actionable task title." },
-        description: { type: "string", description: "Optional details and acceptance context." },
-        priority: { type: "string", enum: ["low", "medium", "high", "critical"] },
-      },
-      required: ["title"],
-      additionalProperties: false,
-    },
-    execute: async (input) => {
-      const workspace = await getWorkspace();
-      const result = await createTask({
-        workspaceId: workspace.workspace.id,
-        title: String(input.title),
-        description: input.description ? String(input.description) : undefined,
-        priority: input.priority as TaskPriority | undefined,
-        createdBy: "webmcp-agent",
-      });
-      changed();
-      return JSON.stringify(result);
-    },
-  });
-
-  register({
-    name: "workspace.update_task",
-    title: "Update workspace task",
-    description: "Update the status or priority of an existing workspace task.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        taskId: { type: "string", description: "ID of the task to modify." },
-        status: { type: "string", enum: ["todo", "in_progress", "blocked", "done"] },
-        priority: { type: "string", enum: ["low", "medium", "high", "critical"] },
-      },
-      required: ["taskId"],
-      additionalProperties: false,
-    },
-    execute: async (input) => {
-      const result = await updateTask(String(input.taskId), {
-        ...(input.status ? { status: input.status as TaskStatus } : {}),
-        ...(input.priority ? { priority: input.priority as TaskPriority } : {}),
-      });
-      changed();
-      return JSON.stringify(result);
-    },
-  });
-
-  register({
-    name: "workspace.add_decision",
-    title: "Record workspace decision",
-    description: "Record a decision explicitly made or approved by the user. Never use for a suggestion, assumption, or unapproved recommendation.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        title: { type: "string", description: "Short name of the decision." },
-        decision: { type: "string", description: "The decision that was actually made." },
-        rationale: { type: "string", description: "Optional reasoning or evidence." },
-      },
-      required: ["title", "decision"],
-      additionalProperties: false,
-    },
-    execute: async (input) => {
-      const workspace = await getWorkspace();
-      const result = await addDecision({
-        workspaceId: workspace.workspace.id,
-        title: String(input.title),
-        decision: String(input.decision),
-        rationale: input.rationale ? String(input.rationale) : undefined,
-        createdBy: "webmcp-agent",
-      });
-      changed();
-      return JSON.stringify(result);
-    },
-  });
-
-  register({
-    name: "workspace.add_knowledge",
-    title: "Add workspace knowledge",
-    description: "Store durable typed workspace context, evidence, findings, questions, requirements, hypotheses, or references for future work.",
-    inputSchema: {
-      type: "object",
-      properties: { title: { type: "string" }, content: { type: "string" }, type: { type: "string", enum: ["note", "finding", "question", "requirement", "hypothesis", "reference"] } },
-      required: ["title", "content"],
-      additionalProperties: false,
-    },
-    execute: async (input) => {
-      const workspace = await getWorkspace();
-      const result = await addKnowledge({
-        workspaceId: workspace.workspace.id,
-        title: String(input.title),
-        content: String(input.content),
-        type: input.type as import("./types").KnowledgeType | undefined,
-        createdBy: "webmcp-agent",
-      });
-      changed();
-      return JSON.stringify(result);
-    },
-  });
-
-  register({
-    name: "workspace.get_activity",
-    title: "Get workspace activity",
-    description: "Read recent human and agent activity in the current workspace to understand what changed and who changed it.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
-    annotations: { readOnlyHint: true },
-    execute: async () => JSON.stringify((await getWorkspace()).activity),
-  });
-
+  register({ name: "workspace.list", title: "List workspaces", description: "List available workspaces and concise workload metadata. Use when the user refers to several projects, asks what to work on next, or has not identified a workspace.", inputSchema: schema({}), annotations: storedRead, execute: async () => JSON.stringify(await listWorkspaces()) });
+  register({ name: "workspace.get_context", title: "Get workspace context", description: "Read authoritative structured state for one workspace, including tasks, confirmed decisions, pending proposals, typed knowledge, children, activity, and agent runs. Use before workspace-specific claims.", inputSchema: schema({ workspaceId }, ["workspaceId"]), annotations: storedRead, execute: async (input) => JSON.stringify(await getWorkspaceById(String(input.workspaceId))) });
+  register({ name: "workspace.get_children", title: "Get child workspaces", description: "List direct child workspaces when a workspace contains subareas.", inputSchema: schema({ workspaceId }, ["workspaceId"]), annotations: storedRead, execute: async (input) => JSON.stringify(await getWorkspaceChildren(String(input.workspaceId))) });
+  register({ name: "workspace.get_open_items", title: "Get open work", description: "Return unfinished tasks for one explicitly identified workspace. Use to inspect blockers, prioritize, or resume work.", inputSchema: schema({ workspaceId }, ["workspaceId"]), annotations: storedRead, execute: async (input) => JSON.stringify((await getWorkspaceById(String(input.workspaceId))).tasks.filter((task) => task.status !== "done")) });
+  register({ name: "workspace.get_activity", title: "Get workspace activity", description: "Read persisted human and agent activity for one workspace to understand what changed, by whom, and through which source.", inputSchema: schema({ workspaceId }, ["workspaceId"]), annotations: storedRead, execute: async (input) => JSON.stringify(await getWorkspaceActivity(String(input.workspaceId))) });
+  register({ name: "workspace.create_task", title: "Create workspace task", description: "Create concrete actionable work in an explicitly identified workspace.", inputSchema: schema({ workspaceId, title: { type: "string", minLength: 1 }, description: { type: "string" }, priority: { type: "string", enum: ["low", "medium", "high", "critical"] } }, ["workspaceId", "title"]), execute: async (input) => { const wid=String(input.workspaceId); const result=await createTask({workspaceId:wid,title:String(input.title),description:input.description?String(input.description):undefined,priority:input.priority as TaskPriority|undefined,createdBy:"webmcp-agent",source:"webmcp"}); changed(wid); return JSON.stringify(result); } });
+  register({ name: "workspace.update_task", title: "Update workspace task", description: "Update a task in an explicitly identified workspace. Workspace ID must match the task's workspace.", inputSchema: schema({ workspaceId, taskId: { type: "string", minLength: 1 }, status: { type: "string", enum: ["todo", "in_progress", "blocked", "done"] }, priority: { type: "string", enum: ["low", "medium", "high", "critical"] } }, ["workspaceId", "taskId"]), execute: async (input) => { const wid=String(input.workspaceId), taskId=String(input.taskId); const context=await getWorkspaceById(wid); if(!context.tasks.some((task)=>task.id===taskId)) throw new Error("Task does not belong to the specified workspace."); const result=await updateTask(taskId,{...(input.status?{status:input.status as TaskStatus}:{}),...(input.priority?{priority:input.priority as TaskPriority}:{})},context.workspace.id,"webmcp-agent","webmcp"); changed(context.workspace.id); return JSON.stringify(result); } });
+  register({ name: "workspace.propose_decision", title: "Propose workspace decision", description: "Propose a durable decision for human review when the human has not explicitly approved it. This creates a pending proposal, not an authoritative decision.", inputSchema: schema({ workspaceId, title: { type: "string", minLength: 1 }, decision: { type: "string", minLength: 1 }, rationale: { type: "string" } }, ["workspaceId", "title", "decision"]), execute: async (input) => { const wid=String(input.workspaceId); const result=await proposeDecision({workspaceId:wid,title:String(input.title),decision:String(input.decision),rationale:input.rationale?String(input.rationale):undefined,proposedBy:"webmcp-agent"}); changed(wid); return JSON.stringify(result); } });
+  register({ name: "workspace.add_decision", title: "Record confirmed decision", description: "Record an authoritative workspace decision only when the human explicitly made or approved it. Use propose_decision for an unapproved recommendation.", inputSchema: schema({ workspaceId, title: { type: "string", minLength: 1 }, decision: { type: "string", minLength: 1 }, rationale: { type: "string" } }, ["workspaceId", "title", "decision"]), execute: async (input) => { const wid=String(input.workspaceId); const result=await addDecision({workspaceId:wid,title:String(input.title),decision:String(input.decision),rationale:input.rationale?String(input.rationale):undefined,createdBy:"webmcp-agent",source:"webmcp"}); changed(wid); return JSON.stringify(result); } });
+  register({ name: "workspace.add_knowledge", title: "Add typed workspace knowledge", description: "Store durable typed context, findings, questions, requirements, hypotheses, or references in an explicitly identified workspace.", inputSchema: schema({ workspaceId, type: { type: "string", enum: ["note", "finding", "question", "requirement", "hypothesis", "reference"] }, title: { type: "string", minLength: 1 }, content: { type: "string", minLength: 1 } }, ["workspaceId", "type", "title", "content"]), execute: async (input) => { const wid=String(input.workspaceId); const result=await addKnowledge({workspaceId:wid,type:input.type as KnowledgeType,title:String(input.title),content:String(input.content),createdBy:"webmcp-agent",source:"webmcp"}); changed(wid); return JSON.stringify(result); } });
   return controller;
 }

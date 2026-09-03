@@ -1,6 +1,7 @@
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { chatWithWikiAgent, getWorkspace, resetDemo, updateTask } from "./api";
-import type { ActivityItem, AgentRun, Decision, KnowledgeItem, Task, TaskStatus, Workspace } from "./types";
+import { approveDecisionProposal, chatWithWikiAgent, getWorkspaceById, listWorkspaces, rejectDecisionProposal, resetDemo, updateTask } from "./api";
+import { isWebMCPAvailable, WEBMCP_STATUS_EVENT } from "./webmcp";
+import type { ActivityEvent, AgentRun, Decision, DecisionProposal, KnowledgeItem, Task, TaskStatus, Workspace, WorkspaceSummary } from "./types";
 
 type Tab = "tasks" | "decisions" | "knowledge" | "runs" | "activity";
 const tabs: Array<{ id: Tab; label: string }> = [
@@ -28,6 +29,7 @@ function Icon({ name }: { name: "grid" | "folder" | "book" | "spark" | "reset" |
 
 export default function App() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
   const [tab, setTab] = useState<Tab>("tasks");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -37,20 +39,37 @@ export default function App() {
   const [agentRunning, setAgentRunning] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [changingTask, setChangingTask] = useState<string | null>(null);
+  const [reviewingProposal, setReviewingProposal] = useState<string | null>(null);
+  const [webMcpAvailable, setWebMcpAvailable] = useState(isWebMCPAvailable());
 
-  const loadWorkspace = useCallback(async (quiet = false) => {
+  const loadWorkspace = useCallback(async (workspaceId: string, quiet = false) => {
     if (quiet) setRefreshing(true);
-    try { setWorkspace(await getWorkspace()); setError(null); }
+    try { setWorkspace(await getWorkspaceById(workspaceId)); setError(null); }
     catch (err) { setError(err instanceof Error ? err.message : "Unable to load workspace."); }
     finally { setLoading(false); setRefreshing(false); }
   }, []);
 
   useEffect(() => {
-    void loadWorkspace();
-    const handler = () => void loadWorkspace(true);
-    window.addEventListener("wikiagent:changed", handler);
-    return () => window.removeEventListener("wikiagent:changed", handler);
+    void listWorkspaces().then((items) => {
+      setWorkspaces(items);
+      const requested = new URLSearchParams(window.location.search).get("workspace");
+      const initial = items.find((item) => item.id === requested || item.slug === requested) ?? items[0];
+      if (initial) void loadWorkspace(initial.id);
+      else setLoading(false);
+    }).catch((err: unknown) => { setError(err instanceof Error ? err.message : "Unable to list workspaces."); setLoading(false); });
   }, [loadWorkspace]);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const targetId = (event as CustomEvent<{ workspaceId?: string }>).detail?.workspaceId;
+      if (workspace && (!targetId || targetId === workspace.workspace.id || targetId === workspace.workspace.slug)) void loadWorkspace(workspace.workspace.id, true);
+      void listWorkspaces().then(setWorkspaces);
+    };
+    const statusHandler = (event: Event) => setWebMcpAvailable(Boolean((event as CustomEvent<{ available: boolean }>).detail.available));
+    window.addEventListener("wikiagent:changed", handler);
+    window.addEventListener(WEBMCP_STATUS_EVENT, statusHandler);
+    return () => { window.removeEventListener("wikiagent:changed", handler); window.removeEventListener(WEBMCP_STATUS_EVENT, statusHandler); };
+  }, [loadWorkspace, workspace]);
 
   const stats = useMemo(() => ({
     open: workspace?.tasks.filter((item) => item.status !== "done").length ?? 0,
@@ -66,7 +85,7 @@ export default function App() {
     setAgentRunning(true); setAgentOutput(""); setError(null);
     try {
       const result = await chatWithWikiAgent(workspace.workspace.id, message);
-      setAgentOutput(result.output); setAgentInput(""); await loadWorkspace(true);
+      setAgentOutput(result.output); setAgentInput(""); await loadWorkspace(workspace.workspace.id, true);
     } catch (err) { setAgentOutput(err instanceof Error ? err.message : "Agent execution failed."); }
     finally { setAgentRunning(false); }
   }
@@ -78,7 +97,7 @@ export default function App() {
   async function handleReset() {
     if (resetting || !window.confirm("Reset the workspace to its original demo data?")) return;
     setResetting(true);
-    try { await resetDemo(); setAgentOutput(""); setAgentInput(""); setTab("tasks"); await loadWorkspace(true); }
+    try { await resetDemo(); setAgentOutput(""); setAgentInput(""); setTab("tasks"); const items=await listWorkspaces(); setWorkspaces(items); const initial=items.find((item)=>item.slug==="compa-friki")??items[0]; if(initial) await loadWorkspace(initial.id,true); }
     catch (err) { setError(err instanceof Error ? err.message : "Could not reset the demo."); }
     finally { setResetting(false); }
   }
@@ -86,13 +105,27 @@ export default function App() {
   async function handleTaskStatus(task: Task, status: TaskStatus) {
     if (changingTask) return;
     setChangingTask(task.id);
-    try { await updateTask(task.id, { status }); await loadWorkspace(true); }
+    try { await updateTask(task.id, { status }, task.workspace_id, "human"); await loadWorkspace(task.workspace_id, true); }
     catch (err) { setError(err instanceof Error ? err.message : "Could not update the task."); }
     finally { setChangingTask(null); }
   }
 
   if (loading && !workspace) return <LoadingScreen />;
-  if (!workspace) return <ErrorScreen message={error ?? "Workspace unavailable."} retry={() => void loadWorkspace()} />;
+  if (!workspace) return <ErrorScreen message={error ?? "Workspace unavailable."} retry={() => window.location.reload()} />;
+
+  function switchWorkspace(item: WorkspaceSummary) {
+    if (item.id === workspace?.workspace.id) return;
+    setAgentOutput(""); setAgentInput(""); setLoading(true); setError(null);
+    const url = new URL(window.location.href); url.searchParams.set("workspace", item.slug); window.history.replaceState({}, "", url);
+    void loadWorkspace(item.id);
+  }
+
+  async function reviewProposal(proposal: DecisionProposal, action: "approve" | "reject") {
+    setReviewingProposal(proposal.id);
+    try { if (action === "approve") await approveDecisionProposal(proposal.id); else await rejectDecisionProposal(proposal.id); await loadWorkspace(proposal.workspace_id, true); }
+    catch (err) { setError(err instanceof Error ? err.message : `Could not ${action} proposal.`); }
+    finally { setReviewingProposal(null); }
+  }
 
   return (
     <div className="app-shell">
@@ -110,15 +143,15 @@ export default function App() {
           </nav>
           <section className="workspace-switcher" aria-label="Your workspaces">
             <span>Your workspaces</span>
-            <button className="workspace-choice active" aria-current="page">
-              <span className="workspace-avatar">CF</span>
-              <span><strong>{workspace.workspace.name}</strong><small>{formatWorkspaceType(workspace.workspace.type)}</small></span>
-              <i />
-            </button>
+            {workspaces.filter((item) => !item.parent_workspace_id).map((item) => <button key={item.id} className={`workspace-choice ${item.id === workspace.workspace.id ? "active" : ""}`} aria-current={item.id === workspace.workspace.id ? "page" : undefined} onClick={() => switchWorkspace(item)}>
+              <span className="workspace-avatar">{initials(item.name)}</span>
+              <span><strong>{item.name}</strong><small>{formatWorkspaceType(item.type)} · {item.open_task_count} open</small></span>
+              {item.id === workspace.workspace.id && <i />}
+            </button>)}
           </section>
         </div>
         <div className="sidebar-footer">
-          <div className="protocol-state"><span className="status-dot" />WebMCP ready</div>
+          <div className={`protocol-state ${webMcpAvailable ? "connected" : "unavailable"}`}><span className="status-dot" />WebMCP {webMcpAvailable ? "connected" : "unavailable"}</div>
           <p className="protocol-copy">Workspace tools available to browser agents.</p>
           <button className="ghost-button" onClick={handleReset} disabled={resetting}><Icon name="reset" />{resetting ? "Resetting…" : "Reset demo"}</button>
         </div>
@@ -142,6 +175,13 @@ export default function App() {
 
         <div className="content-grid">
           <section className="workspace-panel" aria-label="Project workspace">
+            {workspace.decisionProposals.filter((proposal) => proposal.status === "pending").length > 0 && <section className="proposal-section" aria-label="Pending decision proposals">
+              <div className="proposal-section-title"><div><span>Pending review · {workspace.decisionProposals.filter((proposal) => proposal.status === "pending").length}</span><h2>Agent proposals awaiting your review</h2></div><Icon name="spark" /></div>
+              {workspace.decisionProposals.filter((proposal) => proposal.status === "pending").map((proposal) => <article className="proposal-card" key={proposal.id}>
+                <div className="proposal-content"><span>Proposed by {humanizeActor(proposal.proposed_by)}</span><h3>{proposal.title}</h3><p>{proposal.proposed_decision}</p>{proposal.rationale && <small>{proposal.rationale}</small>}</div>
+                <div className="proposal-actions"><button className="reject" disabled={reviewingProposal === proposal.id} onClick={() => void reviewProposal(proposal, "reject")}>Reject</button><button className="approve" disabled={reviewingProposal === proposal.id} onClick={() => void reviewProposal(proposal, "approve")}><Icon name="check" />{reviewingProposal === proposal.id ? "Reviewing…" : "Approve"}</button></div>
+              </article>)}
+            </section>}
             <div className="tabs" role="tablist" aria-label="Workspace sections">
               {tabs.map((item) => <button key={item.id} id={`tab-${item.id}`} role="tab" aria-selected={tab === item.id} aria-controls="workspace-content" className={tab === item.id ? "tab active" : "tab"} onClick={() => setTab(item.id)}>{item.label}<span>{item.id === "tasks" ? workspace.tasks.length : item.id === "decisions" ? workspace.decisions.length : item.id === "knowledge" ? workspace.knowledge.length : item.id === "activity" ? workspace.activity.length : workspace.agentRuns.length}</span></button>)}
               {refreshing && <span className="syncing" aria-label="Syncing workspace" />}
@@ -159,7 +199,7 @@ export default function App() {
             <div className="agent-header"><div><div className="eyebrow"><span />Persistent agent</div><h2><span className="agent-orb"><Icon name="spark" /></span>Wiki Agent</h2></div><span className="agent-badge"><i />online</span></div>
             <div className="agent-description"><p>This agent shares the same workspace state as humans and external WebMCP agents.</p><button className="agent-example" type="button" onClick={() => setAgentInput("Where did we leave this workspace?")}><span>Try asking</span>“Where did we leave this workspace?”</button></div>
             <div className="agent-response" aria-live="polite">
-              {agentRunning ? <div className="thinking"><span/><span/><span/><em>Reading shared memory…</em></div> : agentOutput ? <p>{agentOutput}</p> : <div className="empty-agent"><Icon name="book" /><p>Ask about project context, recent changes, or what to do next.</p></div>}
+              {agentRunning ? <div className="thinking"><span/><span/><span/><em>Reading shared memory…</em></div> : agentOutput ? <p>{agentOutput}</p> : <div className="empty-agent"><Icon name="book" /><p>Ask about workspace context, recent changes, or what to do next.</p></div>}
             </div>
             <form className="agent-form" onSubmit={submitAgent}>
               <label className="sr-only" htmlFor="agent-prompt">Message the persistent Wiki Agent</label>
@@ -168,7 +208,7 @@ export default function App() {
             </form>
           </section>
         </div>
-        <footer className="app-footer"><span><Icon name="lock" />Project state persists across agents and sessions</span><span>One workspace. Many agents.</span></footer>
+        <footer className="app-footer"><span><Icon name="lock" />Workspace state persists across agents and sessions</span><span>One workspace. Many agents.</span></footer>
       </main>
     </div>
   );
@@ -187,12 +227,14 @@ function TaskList({ tasks, changingTask, onStatus }: { tasks: Task[]; changingTa
 
 function DecisionList({ decisions }: { decisions: Decision[] }) { return decisions.length ? <div className="list">{decisions.map((item) => <article key={item.id} className="list-item decision-item"><div className="decision-mark"><Icon name="check" /></div><div><h3>{item.title}</h3><p>{item.decision}</p>{item.rationale && <blockquote>{item.rationale}</blockquote>}<div className="meta"><span>decided by {humanizeActor(item.created_by)}</span><time dateTime={item.created_at}>{relativeDate(item.created_at)}</time></div></div></article>)}</div> : <Empty message="No decisions have been recorded." />; }
 function KnowledgeList({ items }: { items: KnowledgeItem[] }) { return items.length ? <div className="list note-grid">{items.map((item) => <article key={item.id} className={`list-item note-item knowledge-${item.type}`}><div className="note-top"><span><Icon name="book" /></span><span className="knowledge-type">{item.type}</span><time dateTime={item.updated_at}>{relativeDate(item.updated_at)}</time></div><h3>{item.title}</h3><p>{item.content}</p><div className="meta"><span>by {humanizeActor(item.created_by)}</span></div></article>)}</div> : <Empty message="No durable knowledge has been added." />; }
-function ActivityList({ items }: { items: ActivityItem[] }) { return items.length ? <div className="activity-list">{items.map((item) => <article key={item.id} className="activity-item"><span className="activity-dot" /><div><div><strong>{humanizeActor(item.actor)}</strong><time dateTime={item.created_at}>{relativeDate(item.created_at)}</time></div><p>{humanizeAction(item.action)}</p>{item.detail && <small>{item.detail}</small>}</div></article>)}</div> : <Empty message="No workspace activity yet." />; }
+function ActivityList({ items }: { items: ActivityEvent[] }) { return items.length ? <div className="activity-list">{items.map((item) => <article key={item.id} className="activity-item"><span className={`activity-dot source-${item.source}`} /><div><div><strong>{humanizeActor(item.actor)}</strong><span className={`source-badge ${item.source}`}>{humanizeSource(item.source)}</span><time dateTime={item.created_at}>{relativeDate(item.created_at)}</time></div><p>{humanizeAction(item.action)}</p>{item.summary && <small>{item.summary}</small>}</div></article>)}</div> : <Empty message="No workspace activity yet." />; }
 function RunList({ runs }: { runs: AgentRun[] }) { return runs.length ? <div className="list">{runs.map((run) => <article key={run.id} className="list-item run-item"><div className="item-row"><h3><span className="agent-orb small"><Icon name="spark" /></span>{run.agent_name}</h3><span className={`run-status ${run.status}`}>{run.status}</span></div><div className="run-copy"><span>Prompt</span><p>{run.input}</p><span>Response</span><p>{run.output}</p></div><div className="meta"><time dateTime={run.created_at}>{relativeDate(run.created_at)}</time></div></article>)}</div> : <Empty message="No agent runs yet. Ask Wiki Agent to start the shared history." />; }
 function Empty({ message }: { message: string }) { return <div className="empty-list"><Icon name="book" /><p>{message}</p></div>; }
 function LoadingScreen() { return <div className="center-screen"><div className="loader-mark">W</div><span>Opening shared memory…</span></div>; }
 function ErrorScreen({ message, retry }: { message: string; retry: () => void }) { return <div className="center-screen error-screen"><div className="loader-mark">W</div><h1>Workspace unavailable</h1><p>{message}</p><button onClick={retry}>Try again</button></div>; }
-function humanizeActor(actor: string) { return actor === "webmcp-agent" ? "WebMCP agent" : actor.replaceAll("-", " "); }
+function humanizeActor(actor: string) { if (actor === "webmcp-agent") return "Browser Agent · WebMCP"; if (actor === "wiki-agent") return "Wiki Agent"; if (actor === "human") return "Human"; return actor.replaceAll("-", " "); }
 function humanizeAction(action: string) { return action.replaceAll("_", " ").replace(/^\w/, (letter) => letter.toUpperCase()); }
 function formatWorkspaceType(type: string) { return type.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()); }
+function humanizeSource(source: string) { return source === "webmcp" ? "WebMCP" : source === "wiki_agent" ? "Agent" : humanizeAction(source); }
+function initials(name: string) { return name.split(/\s+/).slice(0, 2).map((word) => word[0]).join("").toUpperCase(); }
 function relativeDate(value: string) { const time = new Date(value).getTime(); const diff = Date.now() - time; if (!Number.isFinite(time)) return "recently"; if (diff < 60_000) return "just now"; if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`; if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`; return new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(new Date(time)); }

@@ -16,6 +16,11 @@ export interface WorkspaceInfo {
   updated_at: string;
 }
 
+export interface WorkspaceSummary extends WorkspaceInfo {
+  open_task_count: number;
+  child_count: number;
+}
+
 export interface Task {
   id: string;
   workspace_id: string;
@@ -59,12 +64,29 @@ export interface AgentRun {
   created_at: string;
 }
 
-export interface ActivityItem {
+export interface ActivityEvent {
   id: string;
   workspace_id: string;
   actor: string;
+  source: "human" | "webmcp" | "wiki_agent" | "system" | string;
   action: string;
-  detail: string;
+  entity_type: string;
+  entity_id: string | null;
+  summary: string;
+  metadata_json: string;
+  created_at: string;
+}
+
+export interface DecisionProposal {
+  id: string;
+  workspace_id: string;
+  title: string;
+  proposed_decision: string;
+  rationale: string;
+  proposed_by: string;
+  status: "pending" | "approved" | "rejected";
+  reviewed_by: string | null;
+  reviewed_at: string | null;
   created_at: string;
 }
 
@@ -74,5 +96,7 @@ export interface Workspace {
   decisions: Decision[];
   knowledge: KnowledgeItem[];
   agentRuns: AgentRun[];
-  activity: ActivityItem[];
+  activity: ActivityEvent[];
+  children: WorkspaceInfo[];
+  decisionProposals: DecisionProposal[];
 }
