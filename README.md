@@ -34,10 +34,18 @@ The included Compa Friki workspace remains the guided challenge demo. Creating a
 8. `workspace.propose_decision`
 9. `workspace.add_decision`
 10. `workspace.add_knowledge`
+11. `workspace.analyze_repository`
+12. `workspace.get_import_preview`
 
 Agents can propose decisions. Humans approve or reject them. Only approved decisions become authoritative workspace state.
 
 These are domain operations, not automated clicks. WebMCP is progressive enhancement: the React interface remains usable in browsers that do not expose `document.modelContext`.
+
+## Bounded agentic repository import
+
+The platform can analyze a public repository and prepare an evidence-backed import preview of proposed tasks, knowledge, and decisions. The preview is not authoritative state: a human chooses what to accept, and decision-like output remains subject to approval.
+
+This is a one-shot context import, not clone, synchronization, mirroring, background indexing, or continuous GitHub integration. Hard budgets limit calls, files, issues, bytes, tokens, output, and estimated cost.
 
 ## Architecture
 
@@ -209,6 +217,14 @@ Relevant history:
 | --- | --- | --- |
 | `OPENAI_API_KEY` | Server-only credential for the internal agent | none |
 | `OPENAI_MODEL` | Model used by the Resident Agent | `gpt-5.4-nano` |
+| `OPENAI_IMPORT_MODEL` | Model used for repository analysis | `gpt-5.4-nano` |
+| `IMPORT_MAX_MODEL_CALLS` | Calls per import | `8` |
+| `IMPORT_MAX_FILES` | Files considered | `15` |
+| `IMPORT_MAX_ISSUES` | Issues considered | `8` |
+| `IMPORT_MAX_BYTES` | Source bytes fetched | `256000` |
+| `IMPORT_MAX_INPUT_TOKENS` | Estimated input tokens | `60000` |
+| `IMPORT_MAX_OUTPUT_TOKENS` | Output tokens | `8000` |
+| `IMPORT_MAX_ESTIMATED_COST` | Estimated USD cost | `0.03` |
 | `APP_PASSWORD` | Password required to access the application | required |
 | `APP_SESSION_SECRET` | Random server-only key used to sign persistent sessions | required |
 | `PORT` | Express server port | `3001` |

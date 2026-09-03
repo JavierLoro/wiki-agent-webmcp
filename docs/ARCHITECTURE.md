@@ -69,6 +69,15 @@ Confirmed Decision
 
 Approval is transactional: a pending proposal becomes approved and creates exactly one authoritative decision. Rejected and already-reviewed proposals cannot be approved later through the same operation.
 
+## Bounded repository import
+
+```text
+public repository → bounded evidence collection → agentic analysis
+                  → reviewable preview → human-selected workspace writes
+```
+
+The importer is an intake adapter, not a synchronization subsystem. It does not clone a working tree, mirror changes, poll, execute repository code, or bypass decision review. Resident Agent remains a read-only continuity layer over accepted state.
+
 ## Why semantic tools
 
 Without WebMCP, an agent must infer layout and simulate a fragile sequence of clicks. `workspace.create_task({ title, priority })` is explicit, reliable, auditable, and independent of the visual layout.

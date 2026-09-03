@@ -18,6 +18,8 @@ Expose workspace capabilities—not UI mechanics—to browser agents. The applic
 | `workspace.propose_decision` | Write | Record a recommendation awaiting approval |
 | `workspace.add_decision` | Write | Record a decision the human has explicitly made or approved |
 | `workspace.add_knowledge` | Write | Store a typed note, finding, question, requirement, hypothesis, or reference |
+| `workspace.analyze_repository` | Analysis | Produce a bounded, evidence-backed import preview |
+| `workspace.get_import_preview` | Read | Retrieve the latest preview and its warnings/budget use |
 
 Example task input:
 
@@ -41,7 +43,7 @@ Example decision input:
 }
 ```
 
-`workspace.propose_decision` creates a non-authoritative proposal for human review. `workspace.add_decision` writes an authoritative decision and is only appropriate after the human has explicitly made or approved it. Findings and hypotheses belong in typed knowledge.
+`workspace.propose_decision` creates a non-authoritative proposal for human review. `workspace.add_decision` writes an authoritative decision and is only appropriate after explicit approval. Repository analysis also creates previews only: it does not apply, clone, sync, mirror, watch, or continuously index. Defaults are 8 calls, 15 files, 8 issues, 256000 bytes, 60000 input tokens, 8000 output tokens, and USD 0.03 estimated cost.
 
 ## Progressive enhancement and synchronization
 

@@ -33,5 +33,6 @@ Position the product as a user-created workspace platform for makers, research t
 - Confirm `OPENAI_API_KEY` is configured only on the server.
 - Confirm Docker Compose mounts `./data:/data` and sets `DATABASE_PATH=/data/wiki-agent.db`.
 - Confirm Cloudflare Tunnel publishes the final HTTPS hostname to the Debian VM/LXC HTTP service on port 3001.
-- Exercise all ten WebMCP tools against the deployed HTTPS application.
+- Exercise all twelve WebMCP tools against the deployed HTTPS application.
+- Verify repository analysis is bounded and preview-only; never describe it as clone or synchronization.
 - Restart the service after a mutation and verify that SQLite state persists.

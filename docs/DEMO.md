@@ -40,6 +40,10 @@ Reload the page and show that the decision and briefing remain. Restart the back
 
 Close with: “Agents come and go. Your workspace remembers. One persistent workspace. Many agents.”
 
+## Optional import beat
+
+If time permits, analyze a small public repository, show the bounded preview with evidence and budget use, and accept only one useful item. Describe it as a one-shot, human-reviewed context import—not clone or sync. Skip this beat if it weakens the main Compa Friki story.
+
 ## Reset
 
 Use the **Reset demo** button or send `POST /api/demo/reset` before each recording. Reset restores the seed and removes user-created test workspaces.

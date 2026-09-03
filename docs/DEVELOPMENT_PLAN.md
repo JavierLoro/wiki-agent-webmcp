@@ -4,7 +4,7 @@
 
 - First screen explains the workspace-first difference and shows activity.
 - Workspaces, tasks, decisions, typed knowledge, runs, and agent sessions persist in SQLite.
-- The final ten `workspace.*` tools register in a compatible secure context.
+- The final twelve `workspace.*` tools register in a compatible secure context.
 - Multi-workspace discovery and child traversal work.
 - Proposal and confirmation remain visibly separate.
 - WebMCP writes immediately refresh the UI.
@@ -25,6 +25,7 @@
 7. In a WebMCP-capable environment, read context, propose a decision, create a task, approve as a human, and confirm the refreshed briefing sees the changes.
 8. Reset and verify the temporary workspace is removed while seeded workspaces are restored.
 9. Run `npm run check`, then `npm start`; confirm `/` and `/api/health` work from the production server.
+10. Analyze a small public repository, retrieve the preview, verify budgets are enforced, and confirm nothing is applied without human selection.
 
 ## Docker deployment on Proxmox
 

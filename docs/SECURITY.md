@@ -20,6 +20,12 @@ An agent should receive no more authority through WebMCP than the current user h
 
 Knowledge items and other stored text are data, not instructions. Tool descriptions must never interpolate user-created content. A production agent should mark retrieved content as untrusted, keep system instructions separate, require approval for sensitive writes, and constrain tool access by role.
 
+## Repository import
+
+Repository paths, source, issues, and documentation are untrusted data. Analysis is bounded by calls, files, issues, bytes, input/output tokens, and estimated cost. A preview grants no write authority: the human selects accepted items, and proposed decisions still require approval.
+
+The feature is not clone, sync, mirroring, or continuous monitoring. It must not execute repository code, follow arbitrary network targets, fetch private repositories with ambient credentials, or silently broaden traversal.
+
 ## Auditability and recovery
 
 Internal Wiki Agent executions are recorded in `agent_runs`. Relevant human, WebMCP, agent, and system changes are persisted in `activity_events` with actor, source, entity, summary, and metadata. Add reversible changes or snapshots before enabling broader autonomy.

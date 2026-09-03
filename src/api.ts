@@ -1,4 +1,4 @@
-import type { ActivityEvent, AnalysisMode, Decision, DecisionProposal, KnowledgeItem, KnowledgeType, ResidentAnalysis, Task, TaskPriority, TaskStatus, Workspace, WorkspaceInfo, WorkspaceSummary } from "./types";
+import type { ActivityEvent, AnalysisMode, Decision, DecisionProposal, ImportAnalysis, KnowledgeItem, KnowledgeType, ResidentAnalysis, Task, TaskPriority, TaskStatus, Workspace, WorkspaceInfo, WorkspaceSummary } from "./types";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -31,6 +31,9 @@ export const getWorkspace = () => request<Workspace>("/api/bootstrap");
 export const listWorkspaces = () => request<WorkspaceSummary[]>("/api/workspaces");
 export const createWorkspace = (input: { name: string; type: "general" | "software_project" | "hardware_project" | "research" | "organization" | "event"; description?: string }) =>
   request<WorkspaceInfo>("/api/workspaces", { method: "POST", body: JSON.stringify(input) });
+export const analyzeProjectImport = (repositoryUrl: string, additionalContext?: string) => request<ImportAnalysis>("/api/imports/analyze", { method: "POST", body: JSON.stringify({ repositoryUrl, ...(additionalContext?.trim() ? { additionalContext: additionalContext.trim() } : {}) }) });
+export const getProjectImport = (importId: string) => request<ImportAnalysis>(`/api/imports/${encodeURIComponent(importId)}`);
+export const confirmProjectImport = (importId: string) => request<WorkspaceInfo | { workspace: WorkspaceInfo }>(`/api/imports/${encodeURIComponent(importId)}/confirm`, { method: "POST" });
 export const getWorkspaceById = (workspaceId: string) => request<Workspace>(`/api/workspaces/${encodeURIComponent(workspaceId)}/context`);
 export const getWorkspaceChildren = (workspaceId: string) => request<WorkspaceInfo[]>(`/api/workspaces/${encodeURIComponent(workspaceId)}/children`);
 export const getWorkspaceActivity = (workspaceId: string) => request<ActivityEvent[]>(`/api/workspaces/${encodeURIComponent(workspaceId)}/activity`);

@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { approveDecisionProposal, createWorkspace, generateBriefing, getAuthSession, getWorkspaceById, listWorkspaces, login, logout, rejectDecisionProposal, resetDemo, updateTask } from "./api";
+import { analyzeProjectImport, approveDecisionProposal, confirmProjectImport, createWorkspace, generateBriefing, getAuthSession, getProjectImport, getWorkspaceById, listWorkspaces, login, logout, rejectDecisionProposal, resetDemo, updateTask } from "./api";
 import { isWebMCPAvailable, WEBMCP_STATUS_EVENT } from "./webmcp";
-import type { ActivityEvent, AgentRun, AnalysisMode, AnalysisSection, Decision, DecisionProposal, KnowledgeItem, Task, TaskStatus, Workspace, WorkspaceSummary } from "./types";
+import type { ActivityEvent, AgentRun, AnalysisMode, AnalysisSection, Decision, DecisionProposal, ImportAnalysis, KnowledgeItem, Task, TaskStatus, Workspace, WorkspaceSummary } from "./types";
 
 type Tab = "tasks" | "decisions" | "knowledge" | "runs" | "activity";
 const tabs: Array<{ id: Tab; label: string }> = [
@@ -52,6 +52,10 @@ function WorkspaceApp({ onLogout }: { onLogout: () => void }) {
   const [showNewWorkspace, setShowNewWorkspace] = useState(false);
   const [creatingWorkspace, setCreatingWorkspace] = useState(false);
   const [newWorkspace, setNewWorkspace] = useState({ name: "", type: "general" as "general" | "software_project" | "hardware_project" | "research" | "organization" | "event", description: "" });
+  const [showImport, setShowImport] = useState(false);
+  const [importForm, setImportForm] = useState({ repositoryUrl: "", additionalContext: "" });
+  const [importAnalysis, setImportAnalysis] = useState<ImportAnalysis | null>(null);
+  const [importBusy, setImportBusy] = useState(false);
 
   const loadWorkspace = useCallback(async (workspaceId: string, quiet = false) => {
     if (quiet) setRefreshing(true);
@@ -77,9 +81,11 @@ function WorkspaceApp({ onLogout }: { onLogout: () => void }) {
       void listWorkspaces().then(setWorkspaces);
     };
     const statusHandler = (event: Event) => setWebMcpAvailable(Boolean((event as CustomEvent<{ available: boolean }>).detail.available));
+    const importHandler = (event: Event) => { const analysis=(event as CustomEvent<ImportAnalysis>).detail;if(analysis?.id){setImportAnalysis(analysis);setShowImport(true);} };
     window.addEventListener("wikiagent:changed", handler);
     window.addEventListener(WEBMCP_STATUS_EVENT, statusHandler);
-    return () => { window.removeEventListener("wikiagent:changed", handler); window.removeEventListener(WEBMCP_STATUS_EVENT, statusHandler); };
+    window.addEventListener("wikiagent:import-ready", importHandler);
+    return () => { window.removeEventListener("wikiagent:changed", handler); window.removeEventListener(WEBMCP_STATUS_EVENT, statusHandler); window.removeEventListener("wikiagent:import-ready", importHandler); };
   }, [loadWorkspace, workspace]);
 
   const stats = useMemo(() => ({
@@ -143,6 +149,21 @@ function WorkspaceApp({ onLogout }: { onLogout: () => void }) {
     finally { setCreatingWorkspace(false); }
   }
 
+  function closeImport() { if (importBusy) return; setShowImport(false); setImportAnalysis(null); setImportForm({ repositoryUrl: "", additionalContext: "" }); }
+  async function handleAnalyzeImport(event: FormEvent) {
+    event.preventDefault(); if (!importForm.repositoryUrl.trim() || importBusy) return;
+    setImportBusy(true); setError(null);
+    try { const result=await analyzeProjectImport(importForm.repositoryUrl.trim(),importForm.additionalContext); setImportAnalysis(result.status==="analyzing"?await getProjectImport(result.id):result); }
+    catch(err){setError(err instanceof Error?err.message:"Could not analyze repository.");}
+    finally{setImportBusy(false);}
+  }
+  async function handleConfirmImport() {
+    if (!importAnalysis || importBusy) return; setImportBusy(true); setError(null);
+    try { const result=await confirmProjectImport(importAnalysis.id); const created="workspace" in result?result.workspace:result; const items=await listWorkspaces(); setWorkspaces(items); setShowImport(false); setImportAnalysis(null); setImportForm({repositoryUrl:"",additionalContext:""}); setTab("tasks"); setAnalysisMode("overview"); const url=new URL(window.location.href);url.searchParams.set("workspace",created.slug);window.history.replaceState({},"",url);await loadWorkspace(created.id); }
+    catch(err){setError(err instanceof Error?err.message:"Could not import workspace.");}
+    finally{setImportBusy(false);}
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -165,6 +186,7 @@ function WorkspaceApp({ onLogout }: { onLogout: () => void }) {
               {item.id === workspace.workspace.id && <i />}
             </button>)}
             <button className="new-workspace-button" onClick={() => setShowNewWorkspace(true)}><span>+</span> New Workspace</button>
+            <button className="import-project-button" onClick={() => setShowImport(true)}><Icon name="folder" /> Import project</button>
           </section>
         </div>
         <div className="sidebar-footer">
@@ -176,9 +198,9 @@ function WorkspaceApp({ onLogout }: { onLogout: () => void }) {
       </aside>
 
       <main className="main" id="main-content">
-        <header className="mobile-header"><span className="brand-mark mini">W</span><strong>Wiki Agent</strong><div className="mobile-actions"><button className="mobile-new" onClick={() => setShowNewWorkspace(true)}>+ New workspace</button><button className="mobile-reset" onClick={handleReset} aria-label="Reset demo"><Icon name="reset" /></button><button className="mobile-signout" onClick={onLogout}>Sign out</button></div></header>
+        <header className="mobile-header"><span className="brand-mark mini">W</span><strong>Wiki Agent</strong><div className="mobile-actions"><button className="mobile-new" onClick={() => setShowImport(true)}>Import</button><button className="mobile-new" onClick={() => setShowNewWorkspace(true)}>+ New</button><button className="mobile-reset" onClick={handleReset} aria-label="Reset demo"><Icon name="reset" /></button><button className="mobile-signout" onClick={onLogout}>Sign out</button></div></header>
         <section className="project-header">
-          <div><div className="eyebrow"><span />Active workspace · {formatWorkspaceType(workspace.workspace.type)}</div><h1>{workspace.workspace.name}</h1><p>{workspace.workspace.description || "A durable workspace ready for human-agent collaboration."}</p><small className="product-positioning">Persistent shared workspaces for humans and AI agents. Create a workspace, then collaborate on the same durable state.</small></div>
+          <div><div className="eyebrow"><span />Active workspace · {formatWorkspaceType(workspace.workspace.type)}</div><h1>{workspace.workspace.name}</h1><p>{workspace.workspace.description || "A durable workspace ready for human-agent collaboration."}</p>{workspace.importSource&&<small className="import-source">Imported from <a href={workspace.importSource.sourceUrl} target="_blank" rel="noreferrer">{workspace.importSource.repository}</a>{workspace.importSource.importedAt?` at ${new Date(workspace.importSource.importedAt).toLocaleString()}`:""}</small>}<small className="product-positioning">Persistent shared workspaces for humans and AI agents. Create a workspace, then collaborate on the same durable state.</small></div>
           <span className="status-pill"><span />{workspace.workspace.status}</span>
         </section>
 
@@ -239,9 +261,44 @@ function WorkspaceApp({ onLogout }: { onLogout: () => void }) {
           </form>
         </section>
       </div>}
+      {showImport && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeImport(); }}>
+        <section className="workspace-modal import-modal" role="dialog" aria-modal="true" aria-labelledby="import-title">
+          <div className="modal-header"><div><span>{importAnalysis?.preview ? "Import preview" : "Import project"}</span><h2 id="import-title">{importAnalysis?.preview ? importAnalysis.preview.workspace.name : "Turn a repository into a workspace"}</h2></div><button type="button" onClick={closeImport} aria-label="Close import">×</button></div>
+          {!importAnalysis?.preview ? <>
+            <p>Analyze a repository first. Nothing is imported until you approve the preview.</p>
+            <form onSubmit={handleAnalyzeImport}>
+              <label>Repository URL<input autoFocus required type="url" value={importForm.repositoryUrl} onChange={(event)=>setImportForm((value)=>({...value,repositoryUrl:event.target.value}))} placeholder="https://github.com/owner/repository" /></label>
+              <label>Additional context <span>Optional</span><textarea rows={3} maxLength={2000} value={importForm.additionalContext} onChange={(event)=>setImportForm((value)=>({...value,additionalContext:event.target.value}))} placeholder="What this project is for, current priorities, or useful constraints." /></label>
+              {importAnalysis?.error && <p className="import-error" role="alert">{importAnalysis.error}</p>}
+              <div className="modal-actions"><button type="button" className="cancel" onClick={closeImport}>Cancel</button><button type="submit" className="create" disabled={importBusy||!importForm.repositoryUrl.trim()}>{importBusy?"Analyzing…":"Analyze repository"}</button></div>
+            </form>
+          </> : <ImportPreview analysis={importAnalysis} onBack={()=>setImportAnalysis(null)} onConfirm={()=>void handleConfirmImport()} busy={importBusy} />}
+        </section>
+      </div>}
     </div>
   );
 }
+
+function ImportPreview({ analysis, onBack, onConfirm, busy }: { analysis: ImportAnalysis; onBack: () => void; onConfirm: () => void; busy: boolean }) {
+  const preview=analysis.preview;if(!preview)return null;
+  return <div className="import-preview">
+    <p>{preview.importSummary||preview.workspace.description||"A structured workspace generated from the repository."}</p>
+    <div className="import-repo"><Icon name="folder"/><span><strong>{analysis.repository.owner}/{analysis.repository.name}</strong><small>{analysis.repository.defaultBranch||"default branch"}</small></span></div>
+    <div className="import-metrics"><span><b>{analysis.metrics.filesRead}</b>Files</span><span><b>{analysis.metrics.issuesRead}</b>Issues</span><span><b>{preview.tasks.length}</b>Tasks</span><span><b>{preview.knowledge.length}</b>Knowledge</span></div>
+    <div className="import-stack"><span>Detected stack</span>{preview.stack.map(item=><i key={item}>{item}</i>)}<span>{analysis.metrics.modelCalls} model calls · {analysis.metrics.totalTokens.toLocaleString()} tokens · ${analysis.metrics.estimatedCost.toFixed(4)} · {Math.round(analysis.metrics.durationMs/1000)}s</span></div>
+    <div className="preview-columns">
+      <PreviewSection title={`Tasks · ${preview.tasks.length}`} empty="No tasks detected." items={preview.tasks.map(item=>({title:item.title,meta:item.priority,evidence:item.sourcePaths}))}/>
+      <PreviewSection title={`Knowledge · ${preview.knowledge.length}`} empty="No knowledge detected." items={preview.knowledge.map(item=>({title:item.title,meta:item.type,evidence:item.sourcePaths}))}/>
+      <PreviewSection title={`Decision proposals · ${preview.decisionProposals.length}`} empty="No decisions proposed." items={preview.decisionProposals.map(item=>({title:item.title,meta:"proposal",evidence:item.sourcePaths}))}/>
+      <PreviewSection title={`Questions · ${preview.openQuestions.length}`} empty="No open questions." items={preview.openQuestions.map(item=>({title:item.question,meta:"unknown",evidence:item.sourcePaths}))}/>
+      <PreviewSection title={`Risks · ${preview.detectedRisks.length}`} empty="No material risks detected." items={preview.detectedRisks.map(item=>({title:item.risk,meta:"inference",evidence:item.sourcePaths}))}/>
+    </div>
+    <p className="import-note">Review the evidence-based structure. Importing creates a new workspace; it does not change or synchronize the repository. Stop reason: {analysis.metrics.stopReason.replaceAll("_"," ")}.</p>
+    <div className="modal-actions"><button type="button" className="cancel" onClick={onBack} disabled={busy}>Back</button><button type="button" className="create" onClick={onConfirm} disabled={busy}>{busy?"Importing…":"Import workspace"}</button></div>
+  </div>;
+}
+
+function PreviewSection({title,empty,items}:{title:string;empty:string;items:Array<{title:string;meta:string;evidence:string[]}>}){return <details className="preview-section" open><summary>{title}</summary>{items.length?items.map((item,index)=><div className="preview-row" key={`${item.title}-${index}`}><span><strong>{item.title}</strong>{item.evidence.length>0&&<small>Evidence: {item.evidence.join(", ")}</small>}</span><small>{item.meta}</small></div>):<p>{empty}</p>}</details>}
 
 function BriefingSection({ section }: { section: AnalysisSection }) {
   return <section className={`briefing-section ${section.highlight ? "accent" : ""}`}><h3>{section.title}</h3>{section.items.length ? <ul>{section.items.map((item, index) => <li key={`${section.key}-${index}`}>{item}</li>)}</ul> : <p className="briefing-none">None evidenced</p>}{section.suggestedAction && <p className="section-action">{section.suggestedAction}</p>}</section>;

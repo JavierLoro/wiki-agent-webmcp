@@ -91,6 +91,24 @@ export interface DecisionProposal {
   created_at: string;
 }
 
+export interface ImportPreviewTask { title: string; description: string; priority: TaskPriority; sourcePaths: string[]; }
+export interface ImportPreviewKnowledge { title: string; content: string; type: KnowledgeType; sourcePaths: string[]; }
+export interface ImportPreviewProposal { title: string; decision: string; rationale: string; sourcePaths: string[]; }
+export interface ImportPreviewQuestion { question: string; sourcePaths: string[]; }
+export interface ImportPreviewRisk { risk: string; sourcePaths: string[]; }
+export interface ImportPreview {
+  workspace: { name: string; type: WorkspaceType; description: string; context?: string };
+  stack: string[];
+  tasks: ImportPreviewTask[];
+  knowledge: ImportPreviewKnowledge[];
+  decisionProposals: ImportPreviewProposal[];
+  openQuestions: ImportPreviewQuestion[];
+  detectedRisks: ImportPreviewRisk[];
+  importSummary: string;
+}
+export interface ImportMetrics { treeFiles: number; eligibleFiles: number; filesRead: number; issuesRead: number; bytesRead: number; toolCalls: number; modelCalls: number; inputTokens: number; outputTokens: number; totalTokens: number; estimatedCost: number; durationMs: number; stopReason: string; maxFiles: number; maxIssues: number; maxBytes: number; maxFileBytes: number; maxToolCalls: number; maxTurns: number; maxInputTokens: number; maxOutputTokens: number; maxEstimatedCost: number; model: string; }
+export interface ImportAnalysis { id: string; repositoryUrl: string; additionalContext: string; repository: { owner: string; name: string; fullName: string; htmlUrl: string; defaultBranch: string; commitSha: string; description: string; language: string | null; license: string | null; stars: number; updatedAt: string }; status: "analyzing" | "pending" | "confirmed" | "failed"; preview: ImportPreview | null; metrics: ImportMetrics; createdAt: string; confirmedAt: string | null; workspaceId: string | null; error: string | null; }
+
 export type AnalysisMode = "overview" | "tasks" | "decisions" | "knowledge" | "activity";
 
 export interface AnalysisSection {
@@ -121,4 +139,5 @@ export interface Workspace {
   children: WorkspaceInfo[];
   decisionProposals: DecisionProposal[];
   analyses: ResidentAnalysis[];
+  importSource: { sourceType: "github_repository"; sourceUrl: string; repository: string; importedAt: string | null } | null;
 }
