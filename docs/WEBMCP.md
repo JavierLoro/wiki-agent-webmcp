@@ -2,51 +2,99 @@
 
 ## Goal
 
-Expose workspace capabilities—not UI mechanics—to browser agents. The application remains fully usable when `document.modelContext` is unavailable.
+SharedState exposes project capabilities rather than UI mechanics.
+
+The application remains fully usable as a normal React application when WebMCP is unavailable.
+
+The current implementation registers tools through:
+
+```javascript
+document.modelContext.registerTool(...)
+```
+
+## Workspace targeting
+
+Workspace-specific tools require an explicit workspaceId or slug.
+
+The target must not be inferred from the currently visible project.
 
 ## Registered tools
 
 | Tool | Mode | Purpose |
 | --- | --- | --- |
-| `workspace.list` | Read | Discover available workspaces |
-| `workspace.get_context` | Read | Return the workspace, tasks, decisions, knowledge, children, activity, and recent runs |
-| `workspace.get_children` | Read | Traverse the workspace hierarchy |
-| `workspace.get_open_items` | Read | Return unfinished work for planning and blocker discovery |
-| `workspace.get_activity` | Read | Return recent activity across the workspace |
-| `workspace.create_task` | Write | Create actionable workspace work |
-| `workspace.update_task` | Write | Change a task's status or priority |
-| `workspace.propose_decision` | Write | Record a recommendation awaiting approval |
-| `workspace.add_decision` | Write | Record a decision the human has explicitly made or approved |
-| `workspace.add_knowledge` | Write | Store a typed note, finding, question, requirement, hypothesis, or reference |
-| `workspace.analyze_repository` | Analysis | Produce a bounded, evidence-backed import preview |
-| `workspace.get_import_preview` | Read | Retrieve the latest preview and its warnings/budget use |
+| workspace.list | Read | Discover available workspaces and workload metadata |
+| workspace.get_context | Read | Read authoritative structured state for one workspace |
+| workspace.get_children | Read | Traverse direct child workspaces |
+| workspace.get_open_items | Read | Return unfinished tasks for planning and blocker discovery |
+| workspace.get_activity | Read | Read persisted human/agent activity and provenance |
+| workspace.create_task | Write | Create actionable work in an explicit workspace |
+| workspace.update_task | Write | Change task status or priority after validating workspace ownership |
+| workspace.propose_decision | Write | Create a non-authoritative recommendation for human review |
+| workspace.add_decision | Write | Record a decision the human has already explicitly made or approved |
+| workspace.add_knowledge | Write | Store typed durable workspace context |
+| workspace.analyze_repository | Action | Start bounded public-GitHub repository analysis and prepare a preview |
+| workspace.get_import_preview | Read | Retrieve the structured preview, evidence, warnings, and metrics |
 
-Example task input:
+## Example: create a task
 
 ```json
 {
-  "workspaceId": "compa-friki",
-  "title": "Validate battery dimensions",
-  "description": "Measure the physical cell before enclosure revision.",
+  "workspaceId": "esigglol",
+  "title": "Production readiness checklist",
+  "description": "Verify all release-critical production blockers before approval.",
   "priority": "high"
 }
 ```
 
-Example decision input:
+## Example: propose a decision
 
 ```json
 {
-  "workspaceId": "compa-friki",
-  "title": "Battery selection",
-  "decision": "Use LP102228 for the prototype.",
-  "rationale": "It meets current capacity and enclosure constraints."
+  "workspaceId": "esigglol",
+  "title": "Require critical blockers before production release",
+  "decision": "Production approval requires all critical blockers to be resolved.",
+  "rationale": "Current production-critical work includes unresolved release blockers."
 }
 ```
 
-`workspace.propose_decision` creates a non-authoritative proposal for human review. `workspace.add_decision` writes an authoritative decision and is only appropriate after explicit approval. Repository analysis also creates previews only: it does not apply, clone, sync, mirror, watch, or continuously index. Defaults are 8 calls, 15 files, 8 issues, 256000 bytes, 60000 input tokens, 8000 output tokens, and USD 0.03 estimated cost.
+## Decision authority
 
-## Progressive enhancement and synchronization
+`workspace.propose_decision` is the default tool for an agent recommendation.
 
-Registration first checks for `document.modelContext`. If it is missing, normal React workflows continue. Every successful WebMCP mutation dispatches `wikiagent:changed`; the UI listens for that event and reloads the workspace, making agent actions immediately visible and correctable by the human.
+`workspace.add_decision` is only appropriate when the human has explicitly made or approved the decision already.
 
-Tool descriptions are part of the trust boundary. They contain purpose and constraints only, never untrusted stored content.
+Pending proposals must never be treated as confirmed project direction.
+
+## Repository analysis
+
+`workspace.analyze_repository` accepts a public GitHub URL and starts bounded, evidence-based exploration.
+
+`workspace.get_import_preview` returns the structured result.
+
+The importer is intentionally one-shot and human-reviewed. It does not clone repositories, execute repository code, synchronize changes, continuously monitor repositories, use ambient credentials for private repositories, or fetch arbitrary network targets.
+
+## UI synchronization after external writes
+
+A successful WebMCP write persists through the HTTP API and records activity.
+
+For responsiveness and runtime robustness, the frontend uses:
+
+1. immediate `wikiagent:changed` events when available
+2. silent polling as a fallback
+
+Current refresh cadence:
+
+- active workspace: ~1.5 seconds while visible
+- sidebar summaries: ~6 seconds
+
+The refresh path does not change the selected tab, does not show the initial loading screen, avoids overlapping requests, and does not call the Resident Agent or any OpenAI model.
+
+## Progressive enhancement
+
+If `document.modelContext` is unavailable, WebMCP registration is skipped and the normal visual application continues to work.
+
+## Trust boundary
+
+Tool descriptions contain static purpose and authority constraints.
+
+Stored project text and repository content are data, not instructions.

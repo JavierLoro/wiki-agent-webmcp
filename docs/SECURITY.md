@@ -2,32 +2,71 @@
 
 ## Current scope
 
-This MVP uses a single shared password and a signed persistent session cookie. It is still a controlled hackathon demonstration, not an internet-ready multi-user service. A production deployment should add per-user authorization, rate limits, CSRF protections where applicable, and stronger operational controls.
+SharedState currently uses a single shared password and a signed persistent session cookie.
 
-The challenge deployment requires the shared judging password. It uses shared demo state; do not enter sensitive or production data, and use **Reset demo** before testing if another visitor has modified the workspace.
+It is a controlled demonstration / early-stage deployment, not yet a production multi-user service.
 
-An agent should receive no more authority through WebMCP than the current user has through the application.
+A production deployment should add per-user identities and authorization, role-based WebMCP permissions, rate limits, stronger CSRF protections where applicable, operational monitoring, and more granular recovery controls.
+
+Do not enter sensitive production data into a shared public demo environment.
+
+An agent should receive no more authority through WebMCP than the current user is allowed to exercise through the product.
 
 ## Secrets
 
-`OPENAI_API_KEY` is server-only. Never expose it through Vite variables, browser JavaScript, HTML, WebMCP results, logs, or API responses. Do not prefix it with `VITE_`.
+`OPENAI_API_KEY` is server-only.
+
+It must never be exposed through Vite client variables, browser JavaScript, HTML, WebMCP results, client-visible logs, or public API responses.
+
+Do not prefix it with `VITE_`.
+
+## Workspace targeting and authorization
+
+Workspace-specific WebMCP tools require an explicit workspace ID or slug.
+
+The currently visible workspace is not an authorization boundary.
+
+Future multi-user authorization must validate access server-side for the workspace identified in every request.
 
 ## Human decisions
 
-`workspace.propose_decision` records advice awaiting review. `workspace.add_decision` is reserved for a decision the human has already made or explicitly approved. Approving a pending proposal is enforced structurally: the review operation atomically creates one confirmed decision and records its provenance.
+Agents can create pending recommendations with `workspace.propose_decision`.
+
+Pending proposals are not authoritative.
+
+`workspace.add_decision` is reserved for cases where the human has already explicitly made or approved the decision.
 
 ## Prompt injection and untrusted content
 
-Knowledge items and other stored text are data, not instructions. Tool descriptions must never interpolate user-created content. A production agent should mark retrieved content as untrusted, keep system instructions separate, require approval for sensitive writes, and constrain tool access by role.
+Workspace knowledge, activity text, repository source files, issues, READMEs, and documentation are untrusted data.
+
+They must not be treated as system or developer instructions.
+
+Tool descriptions must remain static and must never interpolate stored user or repository content.
 
 ## Repository import
 
-Repository paths, source, issues, and documentation are untrusted data. Analysis is bounded by calls, files, issues, bytes, input/output tokens, and estimated cost. A preview grants no write authority: the human selects accepted items, and proposed decisions still require approval.
+Only public GitHub repositories are supported by the current importer.
 
-The feature is not clone, sync, mirroring, or continuous monitoring. It must not execute repository code, follow arbitrary network targets, fetch private repositories with ambient credentials, or silently broaden traversal.
+Repository exploration is bounded by model calls, files, issues, bytes, token use, and estimated cost.
 
-## Auditability and recovery
+The importer must not execute repository code, clone or mirror working trees as part of analysis, follow arbitrary network URLs, use ambient credentials for private repositories, continuously synchronize repositories, or silently expand traversal beyond configured budgets.
 
-Internal Wiki Agent executions are recorded in `agent_runs`. Relevant human, WebMCP, agent, and system changes are persisted in `activity_events` with actor, source, entity, summary, and metadata. Add reversible changes or snapshots before enabling broader autonomy.
+The result is a preview. It grants no automatic authority to write confirmed decisions.
 
-Suggested roles are `OWNER`, `EDITOR`, `VIEWER`, and `AGENT`, with explicitly granted tool subsets for agents.
+## Auditability
+
+Relevant human, WebMCP, agent, and system changes are persisted with actor/source information.
+
+This makes it possible to distinguish:
+
+```text
+External WebMCP Agent → proposed
+Human                 → approved
+Resident Agent        → interpreted
+Import Agent          → analyzed
+```
+
+## Recovery and future controls
+
+Before broader autonomy, add snapshots/rollback, stronger version history, per-user identities, per-workspace permissions, explicit agent roles/tool grants, and approval policies for sensitive mutations.

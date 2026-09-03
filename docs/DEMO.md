@@ -1,49 +1,182 @@
-# Demo Script
+# Demo and Testing Guide
 
-Target duration: 2–3 minutes.
+SharedState is a persistent project workspace shared by humans and AI agents.
 
-## 1. Establish the problem
+> Agents come and go. Your workspace remembers.
 
-Show the seeded Compa Friki workspace—tasks, decisions, typed knowledge, activity, and runs—and explain that Workspace Platform owns persistence while Wiki Agent is one consumer.
+This guide supports both a short product demo and hands-on testing.
 
-Briefly click **New workspace** and show the name, type, and context fields. Explain that teams can create spaces for their own projects, research, or campaigns, then cancel and return to Compa Friki for the focused demo.
+## Recommended environment
 
-## 2. Let WebMCP read
+- Open the deployed SharedState application in ChatGPT Work's integrated browser.
+- Use a model/runtime that exposes the page's site tools.
+- Keep the SharedState page active while testing.
+- If shared demo state has been modified, use **Reset demo** before starting.
+- The default seeded workspaces are **esigglol** and **LockerBoard**.
+- For the most reliable interaction, ask the agent to use the **current page's site tools** and explicitly avoid browser control.
 
-In a WebMCP-capable environment, ask:
+## 1. Read shared project state
 
-> List workspaces, inspect hardware, and summarize unresolved items and recent activity. Don't modify anything.
+Recommended prompt:
 
-Expected: `workspace.list`, followed by `workspace.get_context` for the relevant workspaces and a grounded summary. No mutation should occur.
+> Use only the current page's site tools. Do not use browser control or inspect the interface manually. List the available workspaces, inspect their structured state, open work, and recent activity, then tell me which project needs attention first. Do not modify anything.
 
-## 3. Let the browser agent write
+Expected tools include:
 
-Ask:
+- `workspace.list`
+- `workspace.get_context`
+- `workspace.get_open_items`
+- `workspace.get_activity`
 
-> Propose LP102228 as the battery, add its dimensions as a finding, and create a verification task. Do not confirm it.
+The agent should identify the most urgent project from structured workspace state rather than from visual inspection of the page.
 
-Expected: `workspace.propose_decision`, `workspace.add_knowledge`, and `workspace.create_task`. The proposal is not authoritative until a human approves it. Keep the dashboard visible so the audience sees it refresh.
+## 2. Let an external agent contribute
 
-Optionally ask it to mark the enclosure task blocked until validation is complete; expect `workspace.update_task`.
+Use **esigglol** for the main example.
 
-## 4. Show shared memory
+Recommended prompt:
 
-Approve the pending proposal manually, open **Decisions**, and click **Generate analysis** in the Resident Agent panel. Then open **Tasks** and generate its separate execution analysis. Returning to Decisions should show the prior snapshot immediately without another model call.
+> In esigglol, use the current page's site tools to:
+>
+> 1. Create a high-priority task called "Production readiness checklist".
+> 2. Add a finding summarizing the current production release risk based on the critical blockers.
+> 3. Propose the decision "Require critical blockers before production release", with the recommendation that every critical blocker must be resolved before production approval.
+>
+> Do not confirm or approve the decision yourself. Do not use browser control or inspect the UI manually.
 
-It should summarize the approved battery decision, dimensions finding, validation task, current blocker, and next action from structured state—not from the browser agent's conversation.
+Expected tools:
 
-After another WebMCP mutation, show that the existing analysis is marked **STALE**, then use **Refresh analysis** once. Narrate: “The resident agent adapts to what I’m looking at, but its analysis is persisted. Switching views doesn't call the model again. The external agent acts through WebMCP; the resident agent interprets the consequences.”
+- `workspace.create_task`
+- `workspace.add_knowledge`
+- `workspace.propose_decision`
 
-## 5. Prove persistence
+The new task, finding, and pending proposal should become visible automatically. External WebMCP writes are persisted first; the frontend refreshes silently so the human can see changes without manually reloading the page.
 
-Reload the page and show that the decision and briefing remain. Restart the backend and verify that the briefing still appears.
+## 3. Continue existing work
 
-Close with: “Agents come and go. Your workspace remembers. One persistent workspace. Many agents.”
+Recommended prompt:
 
-## Optional import beat
+> Use the current page's site tools to mark the "Production readiness checklist" task as in progress. Do not make any other changes.
 
-If time permits, analyze a small public repository, show the bounded preview with evidence and budget use, and accept only one useful item. Describe it as a one-shot, human-reviewed context import—not clone or sync. Skip this beat if it weakens the main Compa Friki story.
+Expected tool:
 
-## Reset
+- `workspace.update_task`
 
-Use the **Reset demo** button or send `POST /api/demo/reset` before each recording. Reset restores the seed and removes user-created test workspaces.
+The task should update in the active workspace automatically.
+
+## 4. Human authority
+
+Open **Decisions** and review the pending proposal.
+
+```text
+Agent recommendation
+        ↓
+Pending proposal
+        ↓
+Human review
+   ┌────┴────┐
+ Approve   Reject
+   ↓
+Confirmed decision
+```
+
+Approve the proposal manually.
+
+Then open Activity and verify that attribution is preserved: the external agent proposed the decision and the human approved it.
+
+Pending proposals are intentionally not authoritative decisions.
+
+## 5. Resident Agent continuity
+
+The Resident Agent is a read-only contextual interpretation layer over the same persistent workspace state.
+
+Recommended flow:
+
+1. Open Decisions.
+2. Generate or refresh the Resident Agent analysis.
+3. Verify that the approved production-release direction appears.
+4. Open Tasks.
+5. Generate the task-focused analysis.
+6. Verify that it identifies current priorities and blockers.
+7. Return to Decisions.
+
+The previous Decisions analysis should load from its persisted snapshot without another model call.
+
+The Resident Agent does not need access to the external agent's conversation. It reads the same structured workspace state.
+
+> The agents never talked to each other. They collaborated through the workspace.
+
+After a later workspace mutation, a saved Resident Agent analysis may be marked STALE. Refreshing it is an explicit human action; workspace polling never triggers Resident Agent generation.
+
+## 6. Repository Import Agent
+
+SharedState can bootstrap a workspace from a public GitHub repository through a bounded specialist Import Agent.
+
+Recommended prompt:
+
+> Use the current page's site tools to analyze this public GitHub repository for import:
+>
+> https://github.com/OWNER/REPOSITORY
+>
+> Inspect the resulting import preview and summarize what the platform detected. Do not confirm or create the workspace.
+
+Expected tools:
+
+- `workspace.analyze_repository`
+- `workspace.get_import_preview`
+
+The preview may include project summary, detected type, stack, knowledge, suggested tasks, decision proposals, questions, risks, evidence, provenance, files/issues inspected, and budget metrics.
+
+Repository analysis is one-shot and bounded. It does not clone, execute, synchronize, mirror, poll, or continuously index the repository.
+
+The preview is not applied automatically. A human decides what becomes persistent workspace state.
+
+## 7. Persistence
+
+1. Make a task, knowledge, proposal, or human-approved decision change.
+2. Reload the page.
+3. Verify that structured state remains.
+4. Generate a Resident Agent analysis.
+5. Reload again and verify that the saved analysis remains.
+
+State is stored in SQLite.
+
+## 8. Reset
+
+Use Reset demo to remove test mutations and restore the seeded demo workspaces.
+
+Reset removes user-created/imported demo state and restores the current seed.
+
+## Useful WebMCP coverage
+
+A natural end-to-end test can exercise 10 of the 12 current site tools:
+
+- `workspace.list`
+- `workspace.get_context`
+- `workspace.get_open_items`
+- `workspace.get_activity`
+- `workspace.create_task`
+- `workspace.update_task`
+- `workspace.propose_decision`
+- `workspace.add_knowledge`
+- `workspace.analyze_repository`
+- `workspace.get_import_preview`
+
+Situational tools:
+
+- `workspace.get_children` — useful for hierarchical workspaces.
+- `workspace.add_decision` — only appropriate when the human has already explicitly made or approved the decision.
+
+## Product model
+
+```text
+External WebMCP Agents → act
+Humans                → authorize
+Resident Agent        → interpret
+Import Agent          → bootstrap
+SharedState           → remembers
+```
+
+There is no requirement for agents to share a conversation.
+
+They share durable project state.

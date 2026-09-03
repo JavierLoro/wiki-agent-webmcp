@@ -1,40 +1,83 @@
 # Development and Deployment Plan
 
-## MVP acceptance checklist
+## Current acceptance checklist
 
-- First screen explains the workspace-first difference and shows activity.
-- Workspaces, tasks, decisions, typed knowledge, runs, and agent sessions persist in SQLite.
-- The final twelve `workspace.*` tools register in a compatible secure context.
+- SharedState presents durable workspace state as the primary source of project continuity.
+- Workspaces, tasks, decisions, proposals, typed knowledge, activity, runs, analyses, and import state persist in SQLite.
+- Twelve workspace.* WebMCP tools register in a compatible environment.
+- Workspace-specific tools require explicit workspace IDs/slugs rather than relying on visible UI state.
 - Multi-workspace discovery and child traversal work.
-- Proposal and confirmation remain visibly separate.
-- WebMCP writes immediately refresh the UI.
-- The internal Wiki Agent reads the same state and retains its session.
-- Demo reset is repeatable.
-- A user can create a named, typed workspace with useful starting context.
-- Reset removes test workspaces and restores only the seeded demo.
+- Agent proposals and human-confirmed decisions remain structurally separate.
+- External WebMCP writes become visible without a manual reload or project switch.
+- The active workspace silently refreshes approximately every 1.5 seconds while visible.
+- Sidebar summaries refresh approximately every 6 seconds.
+- Silent refresh avoids overlapping requests and does not trigger Resident Agent generation.
+- Resident Agent analyses are read-only and persisted by workspace + mode.
+- Repository import uses a separate bounded Import Agent and produces a reviewable preview.
+- Users can create their own named/typed workspaces.
+- Reset removes test/user/import demo state and restores the current seed.
 - Production build is served by the Node backend.
 
 ## Local verification
 
-1. Install dependencies and copy `.env.example` to `.env`.
-2. Run `npm run dev`.
-3. Check `http://localhost:5173` and `http://localhost:3001/api/health`.
-4. Confirm `/api/bootstrap` returns seeded Compa Friki, then create a temporary workspace and verify it is selectable.
-5. Create and update state through the UI/API before adding an OpenAI key.
-6. Configure `OPENAI_API_KEY`, generate a Resident Agent Briefing, restart, and verify that it persists.
-7. In a WebMCP-capable environment, read context, propose a decision, create a task, approve as a human, and confirm the refreshed briefing sees the changes.
-8. Reset and verify the temporary workspace is removed while seeded workspaces are restored.
-9. Run `npm run check`, then `npm start`; confirm `/` and `/api/health` work from the production server.
-10. Analyze a small public repository, retrieve the preview, verify budgets are enforced, and confirm nothing is applied without human selection.
+1. Install dependencies and copy .env.example to .env.
+2. Run npm run dev.
+3. Check the frontend and /api/health.
+4. Confirm the current seed contains esigglol and LockerBoard.
+5. Create a disposable workspace and verify it is selectable.
+6. Create/update workspace state through the normal application/API before configuring an OpenAI key.
+7. Configure OPENAI_API_KEY.
+8. Generate a Resident Agent analysis and verify the persisted snapshot survives navigation/reload.
+9. In a WebMCP-capable environment, inspect a workspace through read tools.
+10. Create a task, add knowledge, propose a decision, and update a task through WebMCP.
+11. Verify each external mutation appears automatically without reloading or switching projects.
+12. Verify silent refresh causes no Resident Agent/model calls.
+13. Approve a pending proposal as a human and verify provenance in Activity.
+14. Analyze a public repository and retrieve the import preview.
+15. Verify import budgets and confirm nothing is applied automatically.
+16. Reset and verify disposable/imported/test state is removed while esigglol and LockerBoard return.
+17. Run npm run check.
+18. Run automated tests.
+19. Run the production server and repeat the critical WebMCP path against the production origin.
 
-## Docker deployment on Proxmox
+## Docker deployment
 
-- Copy `.env.example` to `.env` and configure the server-only OpenAI key.
-- Run `docker compose up -d --build` inside the Debian VM or LXC.
-- Persist SQLite through `./data:/data`; the container uses `/data/wiki-agent.db`.
-- Publish the single HTTP origin through Cloudflare Tunnel, which provides public HTTPS and TLS termination.
-- Test persistence after both a restart and `docker compose down` followed by `docker compose up -d`.
+- Copy .env.example to .env.
+- Configure the server-only OpenAI API key.
+- Run docker compose up -d --build.
+- Persist SQLite through the configured host volume.
+- Publish one stable HTTPS origin through the chosen reverse proxy / tunnel.
+- Verify persistence after a normal restart.
+- Verify persistence after docker compose down followed by docker compose up -d.
+- Test the actual public deployment from ChatGPT Work rather than relying only on local browser tests.
 
-## Submission order
+## Release verification
 
-Prioritize a reliable end-to-end path: database and seed, dashboard, context read, decision/task writes, visible refresh, persistent Wiki Agent, deployment, video, and documentation. Freeze feature scope once these pass; spend remaining time on repeatability and explanation rather than extra tools.
+Before calling a deployment ready:
+
+- health endpoint passes
+- authentication/demo access works
+- WebMCP tool catalog is detected
+- read tools are callable
+- write tools persist successfully
+- active UI refreshes after external writes
+- sidebar metadata catches up
+- human proposal approval works
+- Resident Agent is only invoked explicitly
+- import analysis is bounded and preview-only
+- SQLite survives restart
+- Reset demo restores deterministic seed state
+- npm run check and automated tests pass
+
+## Scope discipline
+
+Prefer a reliable end-to-end workflow over additional surface area.
+
+```text
+Discover state
+→ agent contributes
+→ human authorizes
+→ resident interprets
+→ specialist bootstraps new context
+→ state persists
+```

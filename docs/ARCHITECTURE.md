@@ -2,16 +2,28 @@
 
 ## Core idea
 
-Workspace Platform separates durable workspace memory from agent memory. Wiki Agent understands and administers that platform, but does not own its state.
+SharedState separates durable workspace memory from the memory of any individual agent.
+
+Agents may enter or leave a workflow, use different models, or have completely separate conversations. The workspace remains the durable source of project continuity.
+
+> No shared conversation. Shared state.
 
 ## Actors and source of truth
 
-- **Human:** uses the dashboard to inspect tasks, decisions, typed knowledge, and agent activity.
-- **Browser agent:** reads and changes structured state through WebMCP.
-- **Resident Wiki Agent:** runs server-side with the OpenAI Agents SDK and a SQLite-backed session, producing read-only continuity briefings from shared state.
-- **Specialist agents (future):** ephemeral research, coding, QA, or documentation workers whose results return to the workspace.
+- Human: inspects and edits tasks, decisions, knowledge, activity, and project structure through the visual application.
+- External WebMCP Agent: reads and changes structured workspace state through semantic site tools.
+- Resident Agent: server-side, read-only contextual interpretation over the current workspace. Its analyses are persisted by workspace and mode.
+- Import Agent: bounded specialist agent that explores a public GitHub repository and produces an evidence-backed preview for human review.
+- Future specialist agents: research, coding, QA, documentation, or other workers whose useful outputs return to the workspace.
 
-Information precedence is: explicit human decision, structured workspace state, execution records, then conversational memory. Conversation history must not silently override structured state.
+Information precedence:
+
+1. explicit human-approved decisions
+2. structured workspace state
+3. persisted activity and execution records
+4. agent interpretation or conversational memory
+
+Conversation history must never silently override authoritative structured state.
 
 ## Data model
 
@@ -25,63 +37,113 @@ Workspace (type, context, optional parent)
 ├── Activity Events
 ├── Agent Runs
 ├── Resident Analyses (workspace + mode)
-└── Agent Session
+└── Agent Session / execution state
 ```
 
-## Shared write flow
+## External WebMCP flow
 
 ```text
-Human request → Browser agent → WebMCP tool → HTTP API → SQLite
-                                                      ├→ React refresh
-                                                      └→ Wiki Agent reads new state
+Human request
+    ↓
+External AI Agent
+    ↓
+WebMCP semantic tool
+    ↓
+HTTP API
+    ↓
+SQLite
+    ├──→ Activity / provenance
+    └──→ Frontend silent refresh
 ```
 
-Successful WebMCP writes emit `wikiagent:changed`; the React application listens and reloads workspace state.
+WebMCP tools target a workspace explicitly through workspaceId or slug. They must not infer the target from whichever project happens to be visually active.
 
-## Resident agent flow
+The frontend keeps the immediate `wikiagent:changed` event path and uses silent polling as a robustness fallback for changes originating outside the visible React execution context:
+
+- active workspace: approximately every 1.5 seconds while visible
+- workspace sidebar summaries: approximately every 6 seconds
+- overlapping refresh requests are avoided
+- polling never triggers Resident Agent generation
+
+## Resident Agent flow
 
 ```text
-Briefing UI → POST /api/agent/briefing → persistent Session → Resident Wiki Agent
-                                                          ↓
-                                            resident_analyses + agent_runs
-
-Each analysis is keyed by workspace and mode (`overview`, `tasks`, `decisions`, `knowledge`, or `activity`). Navigation only reads persisted snapshots. A model call occurs only after an explicit **Generate analysis** or **Refresh analysis** action. The saved source activity timestamp supports stale detection without automatic regeneration.
+Structured workspace state
+        ↓
+Explicit Generate / Refresh
+        ↓
+Resident Agent
+        ↓
+Persisted analysis snapshot
+        ↓
+Overview / Tasks / Decisions / Knowledge / Activity
 ```
 
-Agent runs and session items are persisted independently from structured project entities.
+Each analysis is keyed by workspace and mode: overview, tasks, decisions, knowledge, or activity.
+
+Navigation reads persisted snapshots. A model call occurs only after explicit Generate analysis or Refresh analysis.
+
+Saved analyses can be marked stale when workspace state changes after the snapshot.
+
+The Resident Agent is an interpreter, not the source of truth and not an autonomous writer.
 
 ## Human-reviewed decisions
 
 ```text
-Agent proposes
-      │
-      ▼
-Pending Proposal
-      │
- Human review
-  ┌───┴───┐
-  ▼       ▼
-Approve  Reject
-  │
-  ▼
+External agent
+    ↓
+Proposal
+    ↓
+Pending human review
+ ┌───────┴───────┐
+ ↓               ↓
+Approve          Reject
+ ↓
 Confirmed Decision
 ```
 
-Approval is transactional: a pending proposal becomes approved and creates exactly one authoritative decision. Rejected and already-reviewed proposals cannot be approved later through the same operation.
+`workspace.propose_decision` creates a non-authoritative proposal.
 
-## Bounded repository import
+Approval is transactional: an approved pending proposal creates exactly one authoritative decision and preserves provenance.
+
+`workspace.add_decision` exists for the narrower case where the human has already explicitly made or approved the decision.
+
+## Import Agent flow
 
 ```text
-public repository → bounded evidence collection → agentic analysis
-                  → reviewable preview → human-selected workspace writes
+Public GitHub repository
+        ↓
+Bounded progressive exploration
+        ↓
+Evidence + unresolved questions
+        ↓
+Structured import preview
+        ↓
+Human review
+        ↓
+Selected persistent workspace state
 ```
 
-The importer is an intake adapter, not a synchronization subsystem. It does not clone a working tree, mirror changes, poll, execute repository code, or bypass decision review. Resident Agent remains a read-only continuity layer over accepted state.
+Repository content is treated as untrusted data.
 
-## Why semantic tools
+The importer is an intake adapter, not a synchronization subsystem. It does not clone a working tree, execute repository code, mirror changes, poll, or continuously index a repository.
 
-Without WebMCP, an agent must infer layout and simulate a fragile sequence of clicks. `workspace.create_task({ title, priority })` is explicit, reliable, auditable, and independent of the visual layout.
+## Why semantic site tools
 
-## Future direction
+Without WebMCP, an agent may have to interpret visual layout and reproduce fragile click sequences.
 
-The Workspace Platform can support hardware, software, research, campaign, and nested workspaces through one shared core. External agents can act, humans authorize, and the Resident Wiki Agent interprets continuity. The resident agent is not the source of truth; it reads the same structured state as everyone else.
+Semantic operations are explicit, auditable, layout-independent, and can carry structured authority constraints.
+
+## Persistence
+
+SQLite owns durable workspace state.
+
+A fresh database receives the current demo seed. User-created or imported workspaces live in SQLite and move between deployments only when the database is migrated.
+
+## Design principle
+
+External agents act.
+Humans authorize.
+Resident agents interpret.
+Specialist agents bootstrap.
+The workspace remembers.

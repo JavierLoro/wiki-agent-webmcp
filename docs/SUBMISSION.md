@@ -2,37 +2,73 @@
 
 ## Links
 
-- Live demo: **TODO — add final HTTPS deployment URL**
+- Live demo: TODO — add final HTTPS deployment URL
 - Public repository: https://github.com/JavierLoro/wiki-agent-webmcp
-- Demo video: **TODO — add final YouTube URL**
+- Demo video: TODO — add final video URL
 - License: MIT
+- Testing guide: [docs/DEMO.md](DEMO.md)
 
-## Judge access
+## Evaluator access
 
-No account, payment, invitation, or judge-provided API key is required. Recommended environments are the ChatGPT in-app browser with WebMCP support or Google Chrome with WebMCP enabled.
+Open the application in ChatGPT Work's integrated browser using a WebMCP-capable model/runtime.
 
-The public demo uses shared SQLite workspace state. Use **Reset demo** before testing if another visitor has modified it.
+If a demo password is configured, provide it in the submission form.
 
-Position the product as a user-created workspace platform for makers, research teams, product teams, and agent builders. Compa Friki is the memorable demonstration of the model, not a hard-coded single-project product.
+The deployment uses shared demo state. Use Reset demo before testing if a previous visitor has modified it.
 
-## Final test
+Recommended first prompt:
 
-1. Reset the demo and confirm Compa Friki and LockerBoard appear.
-2. Briefly open **New workspace** to show that users can supply a name, type, and context; continue the main story in Compa Friki.
-3. Ask a browser agent to list and compare the workspaces without modifying them.
-4. Ask it to propose the LP102228 battery, store its dimensions as a finding, and create a high-priority validation task without confirming the proposal.
-5. Confirm the pending proposal, knowledge item, task, and WebMCP activity appear immediately.
-6. Approve the proposal manually.
-7. Generate separate **Decisions** and **Tasks** analyses, return to the first view without a model call, then demonstrate the **STALE** marker after a new WebMCP mutation.
-8. Confirm it reads the approved decision and related work from shared state.
-9. Create a disposable test workspace, reset again, and confirm it plus proposals, conversations, activity, and mutations are gone while the seed returns.
+> Use only the current page's site tools. Do not use browser control or inspect the interface manually. List the available workspaces, inspect their structured state, open work, and recent activity, then tell me which project needs attention first. Do not modify anything.
 
-## Before submitting
+## Expected seeded state
 
-- Replace both TODO links above.
-- Confirm `OPENAI_API_KEY` is configured only on the server.
-- Confirm Docker Compose mounts `./data:/data` and sets `DATABASE_PATH=/data/wiki-agent.db`.
-- Confirm Cloudflare Tunnel publishes the final HTTPS hostname to the Debian VM/LXC HTTP service on port 3001.
-- Exercise all twelve WebMCP tools against the deployed HTTPS application.
-- Verify repository analysis is bounded and preview-only; never describe it as clone or synchronization.
-- Restart the service after a mutation and verify that SQLite state persists.
+A fresh/reset demo contains:
+
+- esigglol
+- LockerBoard
+
+esigglol is the main end-to-end testing workspace because it contains realistic production blockers and open work.
+
+## Final end-to-end test
+
+1. Reset the demo.
+2. Confirm esigglol and LockerBoard are available.
+3. Ask the external agent to use the current page's site tools to list workspaces and inspect state without modifying anything.
+4. In esigglol, create a high-priority Production readiness checklist.
+5. Add a finding describing the current production release risk.
+6. Propose that all critical blockers must be resolved before production approval.
+7. Confirm the task, finding, and pending proposal appear automatically without manually reloading.
+8. Mark the checklist in progress through WebMCP and confirm the UI updates.
+9. Approve the proposal manually.
+10. Open Activity and confirm provenance distinguishes external-agent proposal from human approval.
+11. Generate Resident Agent analyses in Decisions and Tasks.
+12. Return to a previous mode and verify its persisted snapshot loads without a new model call.
+13. Make another change and verify prior analysis can be marked stale without auto-regeneration.
+14. Analyze a public GitHub repository through workspace.analyze_repository.
+15. Retrieve the preview with workspace.get_import_preview.
+16. Verify the preview is bounded, evidence-backed, and not automatically imported.
+17. Reload and verify SQLite-backed state persists.
+18. Reset again and verify test state is removed and the seed is restored.
+
+## Deployment verification
+
+Before final submission:
+
+- configure OPENAI_API_KEY only on the server
+- persist SQLite outside the container
+- expose a stable HTTPS origin
+- confirm the health endpoint responds
+- verify state survives restart
+- test Reset demo on the deployed environment
+- test WebMCP from the same environment evaluators will use
+- verify repository analysis remains public-GitHub-only and bounded
+
+## Demo narrative
+
+External agents act.
+Humans authorize.
+Resident agents interpret.
+Specialist agents bootstrap.
+The workspace remembers.
+
+> The agents never talked to each other. They collaborated through the workspace.
