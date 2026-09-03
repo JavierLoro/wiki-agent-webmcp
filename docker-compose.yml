@@ -9,7 +9,7 @@ services:
       - .env
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.4}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.4-nano}
       APP_PASSWORD: ${APP_PASSWORD:?Set APP_PASSWORD in .env}
       APP_SESSION_SECRET: ${APP_SESSION_SECRET:?Set APP_SESSION_SECRET in .env}
       PORT: ${PORT:-3001}

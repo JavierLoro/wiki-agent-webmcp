@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { approveDecisionProposal, createWorkspace, generateBriefing, getAuthSession, getWorkspaceById, listWorkspaces, login, logout, rejectDecisionProposal, resetDemo, updateTask } from "./api";
 import { isWebMCPAvailable, WEBMCP_STATUS_EVENT } from "./webmcp";
-import type { ActivityEvent, AgentRun, Decision, DecisionProposal, KnowledgeItem, Task, TaskStatus, Workspace, WorkspaceSummary } from "./types";
+import type { ActivityEvent, AgentRun, AnalysisMode, AnalysisSection, Decision, DecisionProposal, KnowledgeItem, Task, TaskStatus, Workspace, WorkspaceSummary } from "./types";
 
 type Tab = "tasks" | "decisions" | "knowledge" | "runs" | "activity";
 const tabs: Array<{ id: Tab; label: string }> = [
@@ -39,10 +39,12 @@ function WorkspaceApp({ onLogout }: { onLogout: () => void }) {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
   const [tab, setTab] = useState<Tab>("tasks");
+  const [analysisMode, setAnalysisMode] = useState<AnalysisMode>("overview");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [briefingRunning, setBriefingRunning] = useState(false);
+  const [handoffCopied, setHandoffCopied] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [changingTask, setChangingTask] = useState<string | null>(null);
   const [reviewingProposal, setReviewingProposal] = useState<string | null>(null);
@@ -88,7 +90,10 @@ function WorkspaceApp({ onLogout }: { onLogout: () => void }) {
     runs: workspace?.agentRuns.length ?? 0,
   }), [workspace]);
 
-  async function refreshBriefing() { if (!workspace || briefingRunning) return; setBriefingRunning(true); setError(null); try { await generateBriefing(workspace.workspace.id); await loadWorkspace(workspace.workspace.id, true); } catch (err) { setError(err instanceof Error ? err.message : "Could not generate briefing."); } finally { setBriefingRunning(false); } }
+  const currentAnalysis = workspace?.analyses.find((item) => item.mode === analysisMode) ?? null;
+  async function refreshBriefing() { if (!workspace || briefingRunning) return; setBriefingRunning(true); setError(null); try { await generateBriefing(workspace.workspace.id, analysisMode); await loadWorkspace(workspace.workspace.id, true); } catch (err) { setError(err instanceof Error ? err.message : "Could not generate analysis."); } finally { setBriefingRunning(false); } }
+
+  async function copyAgentHandoff() { if (!workspace) return; const overview=workspace.analyses.find((item)=>item.mode==="overview"),section=(key:string)=>overview?.sections.find((item)=>item.key===key)?.items.join("; ")||"Not established";const text=[`WORKSPACE\n${workspace.workspace.name}`,`GOAL / CONTEXT\n${workspace.workspace.context||workspace.workspace.description||"Not established"}`,`CURRENT FOCUS\n${section("current_focus")}`,`CONFIRMED DECISIONS\n${workspace.decisions.map((item)=>`- ${item.title}: ${item.decision}`).join("\n")||"None"}`,`IMPORTANT KNOWLEDGE\n${workspace.knowledge.slice(0,5).map((item)=>`- [${item.type}] ${item.title}: ${item.content}`).join("\n")||"None"}`,`CURRENT BLOCKERS\n${workspace.tasks.filter((item)=>item.status==="blocked").map((item)=>`- ${item.title}`).join("\n")||section("blockers")}`,`PENDING HUMAN REVIEW\n${workspace.decisionProposals.filter((item)=>item.status==="pending").map((item)=>`- ${item.title}: ${item.proposed_decision}`).join("\n")||"None"}`,`MISSING CONTEXT\n${section("gaps_missing_context")}`,`SUGGESTED NEXT ACTION\n${section("suggested_next_action")}`,`DO NOT ASSUME\nPending proposals are not confirmed decisions. Missing context must remain explicit.`].join("\n\n");try{await navigator.clipboard.writeText(text);setHandoffCopied(true);window.setTimeout(()=>setHandoffCopied(false),1600)}catch{setError("Could not copy agent handoff.")}}
 
   async function handleReset() {
     if (resetting || !window.confirm("Reset the workspace to its original demo data?")) return;
@@ -147,9 +152,9 @@ function WorkspaceApp({ onLogout }: { onLogout: () => void }) {
             <span><strong>Wiki Agent</strong><small>Shared memory</small></span>
           </a>
           <nav className="nav" aria-label="Primary navigation">
-            <button className={tab === "tasks" ? "active" : ""} onClick={() => setTab("tasks")} aria-current={tab === "tasks" ? "page" : undefined}><Icon name="grid" />Overview</button>
-            <button className={tab === "decisions" ? "active" : ""} onClick={() => setTab("decisions")} aria-current={tab === "decisions" ? "page" : undefined}><Icon name="folder" />Projects</button>
-            <button className={tab === "knowledge" ? "active" : ""} onClick={() => setTab("knowledge")} aria-current={tab === "knowledge" ? "page" : undefined}><Icon name="book" />Knowledge</button>
+            <button className={analysisMode === "overview" ? "active" : ""} onClick={() => setAnalysisMode("overview")} aria-current={analysisMode === "overview" ? "page" : undefined}><Icon name="grid" />Overview</button>
+            <button className={analysisMode === "tasks" ? "active" : ""} onClick={() => { setTab("tasks"); setAnalysisMode("tasks"); }} aria-current={analysisMode === "tasks" ? "page" : undefined}><Icon name="folder" />Projects</button>
+            <button className={analysisMode === "knowledge" ? "active" : ""} onClick={() => { setTab("knowledge"); setAnalysisMode("knowledge"); }} aria-current={analysisMode === "knowledge" ? "page" : undefined}><Icon name="book" />Knowledge</button>
             <button className={tab === "runs" ? "active" : ""} onClick={() => setTab("runs")} aria-current={tab === "runs" ? "page" : undefined}><Icon name="spark" />Agent runs</button>
           </nav>
           <section className="workspace-switcher" aria-label="Your workspaces">
@@ -195,7 +200,7 @@ function WorkspaceApp({ onLogout }: { onLogout: () => void }) {
               </article>)}
             </section>
             <div className="tabs" role="tablist" aria-label="Workspace sections">
-              {tabs.map((item) => <button key={item.id} id={`tab-${item.id}`} role="tab" aria-selected={tab === item.id} aria-controls="workspace-content" className={tab === item.id ? "tab active" : "tab"} onClick={() => setTab(item.id)}>{item.label}<span>{item.id === "tasks" ? workspace.tasks.length : item.id === "decisions" ? workspace.decisions.length : item.id === "knowledge" ? workspace.knowledge.length : item.id === "activity" ? workspace.activity.length : workspace.agentRuns.length}</span></button>)}
+              {tabs.map((item) => <button key={item.id} id={`tab-${item.id}`} role="tab" aria-selected={tab === item.id} aria-controls="workspace-content" className={tab === item.id ? "tab active" : "tab"} onClick={() => { setTab(item.id); if (item.id !== "runs") setAnalysisMode(item.id); }}>{item.label}<span>{item.id === "tasks" ? workspace.tasks.length : item.id === "decisions" ? workspace.decisions.length : item.id === "knowledge" ? workspace.knowledge.length : item.id === "activity" ? workspace.activity.length : workspace.agentRuns.length}</span></button>)}
               {refreshing && <span className="syncing" aria-label="Syncing workspace" />}
             </div>
             <div className="panel-body" id="workspace-content" role="tabpanel" aria-labelledby={`tab-${tab}`}>
@@ -207,20 +212,17 @@ function WorkspaceApp({ onLogout }: { onLogout: () => void }) {
             </div>
           </section>
 
-          <section className="agent-panel briefing-panel" aria-label="Resident Agent Briefing">
-            <div className="agent-header"><div><div className="eyebrow"><span />Continuity layer</div><h2>Resident Agent Briefing</h2></div><span className="agent-badge"><i />resident</span></div>
-            <div className="agent-description"><p>Continuity summary based on the current workspace state.</p></div>
+          <section className="agent-panel briefing-panel" aria-label="Resident Agent">
+            <div className="agent-header"><div><div className="eyebrow"><span />Continuity layer</div><h2>Resident Agent</h2></div>{currentAnalysis?.stale ? <span className="stale-badge">Stale</span> : <span className="agent-badge"><i />{formatAnalysisMode(analysisMode)}</span>}</div>
+            <div className="agent-description"><p>{analysisSubtitle(analysisMode)}</p></div>
             <div className="briefing-content" aria-live="polite">
-              {briefingRunning ? <div className="thinking"><span/><span/><span/><em>Reviewing workspace state…</em></div> : workspace.briefing ? <>
-                <BriefingSection title="Current focus" value={workspace.briefing.current_focus} />
-                <BriefingSection title="Recent changes" items={workspace.briefing.recent_changes} />
-                <BriefingSection title="Blockers" items={workspace.briefing.blockers} />
-                <BriefingSection title="Pending review" items={workspace.briefing.pending_review} />
-                <BriefingSection title="Suggested next action" value={workspace.briefing.suggested_next_action} accent />
-                <time className="briefing-time" dateTime={workspace.briefing.generated_at}>Updated {relativeDate(workspace.briefing.generated_at)}</time>
-              </> : <div className="empty-agent"><Icon name="book" /><p>Generate a continuity summary from the current workspace state.</p></div>}
+              {briefingRunning ? <div className="thinking"><span/><span/><span/><em>Reviewing workspace state…</em></div> : currentAnalysis ? <>
+                {currentAnalysis.stale && <p className="stale-notice">Analysis may be outdated. Workspace activity changed after this snapshot.</p>}
+                {currentAnalysis.sections.map((section) => <BriefingSection key={section.key} section={section} />)}
+                <time className="briefing-time" dateTime={currentAnalysis.generated_at}>Updated {relativeDate(currentAnalysis.generated_at)}</time>
+              </> : <div className="empty-agent"><Icon name="book" /><p>Generate analysis for this workspace view.</p></div>}
             </div>
-            <div className="briefing-actions"><button type="button" onClick={() => void refreshBriefing()} disabled={briefingRunning}>{briefingRunning ? "Generating…" : workspace.briefing ? "Refresh briefing" : "Generate briefing"}</button></div>
+            <div className="briefing-actions"><button type="button" onClick={() => void refreshBriefing()} disabled={briefingRunning}>{briefingRunning ? "Generating…" : currentAnalysis ? "Refresh analysis" : "Generate analysis"}</button><button type="button" className="handoff-button" onClick={() => void copyAgentHandoff()}>{handoffCopied ? "Copied" : "Copy agent handoff"}</button></div>
           </section>
         </div>
         <footer className="app-footer"><span><Icon name="lock" />Workspace state persists across agents and sessions</span><span>One workspace. Many agents.</span></footer>
@@ -241,8 +243,8 @@ function WorkspaceApp({ onLogout }: { onLogout: () => void }) {
   );
 }
 
-function BriefingSection({ title, value, items, accent = false }: { title: string; value?: string; items?: string[]; accent?: boolean }) {
-  return <section className={`briefing-section ${accent ? "accent" : ""}`}><h3>{title}</h3>{value ? <p>{value}</p> : items?.length ? <ul>{items.map((item, index) => <li key={`${title}-${index}`}>{item}</li>)}</ul> : <p className="briefing-none">None</p>}</section>;
+function BriefingSection({ section }: { section: AnalysisSection }) {
+  return <section className={`briefing-section ${section.highlight ? "accent" : ""}`}><h3>{section.title}</h3>{section.items.length ? <ul>{section.items.map((item, index) => <li key={`${section.key}-${index}`}>{item}</li>)}</ul> : <p className="briefing-none">None evidenced</p>}{section.suggestedAction && <p className="section-action">{section.suggestedAction}</p>}</section>;
 }
 
 function LoginScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
@@ -296,5 +298,7 @@ function humanizeActor(actor: string) { if (actor === "webmcp-agent") return "Br
 function humanizeAction(action: string) { return action.replaceAll("_", " ").replace(/^\w/, (letter) => letter.toUpperCase()); }
 function formatWorkspaceType(type: string) { return type.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()); }
 function humanizeSource(source: string) { return source === "webmcp" ? "WebMCP" : source === "wiki_agent" ? "Agent" : humanizeAction(source); }
+function formatAnalysisMode(mode: AnalysisMode) { return mode === "overview" ? "overview" : mode; }
+function analysisSubtitle(mode: AnalysisMode) { return ({ overview: "Workspace continuity briefing.", tasks: "Execution analysis based on current tasks.", decisions: "Review of confirmed and pending project direction.", knowledge: "Knowledge quality and missing context.", activity: "Interpretation of recent workspace changes." } as const)[mode]; }
 function initials(name: string) { return name.split(/\s+/).slice(0, 2).map((word) => word[0]).join("").toUpperCase(); }
 function relativeDate(value: string) { const time = new Date(value).getTime(); const diff = Date.now() - time; if (!Number.isFinite(time)) return "recently"; if (diff < 60_000) return "just now"; if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`; if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`; return new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(new Date(time)); }

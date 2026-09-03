@@ -36,6 +36,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS knowledge_items (id TEXT PRIMARY KEY,workspace_id TEXT NOT NULL,type TEXT NOT NULL DEFAULT 'note' CHECK(type IN ('note','finding','question','requirement','hypothesis','reference')),title TEXT NOT NULL,content TEXT NOT NULL,created_by TEXT NOT NULL DEFAULT 'human',created_at TEXT NOT NULL,updated_at TEXT NOT NULL,FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE);
   CREATE TABLE IF NOT EXISTS agent_runs (id TEXT PRIMARY KEY,workspace_id TEXT NOT NULL,agent_name TEXT NOT NULL,input TEXT NOT NULL,output TEXT NOT NULL,status TEXT NOT NULL,created_at TEXT NOT NULL,FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE);
   CREATE TABLE IF NOT EXISTS workspace_briefings (workspace_id TEXT PRIMARY KEY,current_focus TEXT NOT NULL,recent_changes_json TEXT NOT NULL,blockers_json TEXT NOT NULL,pending_review_json TEXT NOT NULL,suggested_next_action TEXT NOT NULL,generated_at TEXT NOT NULL,agent_run_id TEXT,FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,FOREIGN KEY(agent_run_id) REFERENCES agent_runs(id) ON DELETE SET NULL);
+  CREATE TABLE IF NOT EXISTS resident_analyses (workspace_id TEXT NOT NULL,mode TEXT NOT NULL CHECK(mode IN ('overview','tasks','decisions','knowledge','activity')),sections_json TEXT NOT NULL,generated_at TEXT NOT NULL,source_last_activity_at TEXT,agent_run_id TEXT,PRIMARY KEY(workspace_id,mode),FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,FOREIGN KEY(agent_run_id) REFERENCES agent_runs(id) ON DELETE SET NULL);
   CREATE TABLE IF NOT EXISTS activity_events (id TEXT PRIMARY KEY,workspace_id TEXT NOT NULL,actor TEXT NOT NULL,source TEXT NOT NULL,action TEXT NOT NULL,entity_type TEXT NOT NULL,entity_id TEXT,summary TEXT NOT NULL,metadata_json TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL,FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE);
   CREATE TABLE IF NOT EXISTS decision_proposals (id TEXT PRIMARY KEY,workspace_id TEXT NOT NULL,title TEXT NOT NULL,proposed_decision TEXT NOT NULL,rationale TEXT NOT NULL DEFAULT '',proposed_by TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),reviewed_by TEXT,reviewed_at TEXT,created_at TEXT NOT NULL,FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE);
   CREATE TABLE IF NOT EXISTS session_items (id INTEGER PRIMARY KEY AUTOINCREMENT,session_id TEXT NOT NULL,item_json TEXT NOT NULL,created_at TEXT NOT NULL);
@@ -61,7 +62,7 @@ export function seedDatabase(): void {
     }
   })();
 }
-export function resetDatabase(): void { db.transaction(() => db.exec("DELETE FROM session_items;DELETE FROM activity_events;DELETE FROM workspace_briefings;DELETE FROM decision_proposals;DELETE FROM agent_runs;DELETE FROM knowledge_items;DELETE FROM decisions;DELETE FROM tasks;DELETE FROM workspaces;"))(); seedDatabase(); backfillActivity(); }
+export function resetDatabase(): void { db.transaction(() => db.exec("DELETE FROM session_items;DELETE FROM activity_events;DELETE FROM resident_analyses;DELETE FROM workspace_briefings;DELETE FROM decision_proposals;DELETE FROM agent_runs;DELETE FROM knowledge_items;DELETE FROM decisions;DELETE FROM tasks;DELETE FROM workspaces;"))(); seedDatabase(); backfillActivity(); }
 seedDatabase();
 
 function backfillActivity(): void {

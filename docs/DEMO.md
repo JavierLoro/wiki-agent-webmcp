@@ -28,11 +28,11 @@ Optionally ask it to mark the enclosure task blocked until validation is complet
 
 ## 4. Show shared memory
 
-Approve the pending proposal manually, then click **Refresh briefing** in the Resident Agent Briefing panel.
+Approve the pending proposal manually, open **Decisions**, and click **Generate analysis** in the Resident Agent panel. Then open **Tasks** and generate its separate execution analysis. Returning to Decisions should show the prior snapshot immediately without another model call.
 
 It should summarize the approved battery decision, dimensions finding, validation task, current blocker, and next action from structured state—not from the browser agent's conversation.
 
-Narrate: “The resident agent never participated in the browser-agent conversation. It understands what happened because both agents share the same workspace.”
+After another WebMCP mutation, show that the existing analysis is marked **STALE**, then use **Refresh analysis** once. Narrate: “The resident agent adapts to what I’m looking at, but its analysis is persisted. Switching views doesn't call the model again. The external agent acts through WebMCP; the resident agent interprets the consequences.”
 
 ## 5. Prove persistence
 

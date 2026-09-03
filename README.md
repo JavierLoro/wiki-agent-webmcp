@@ -179,7 +179,11 @@ Suggested test:
 5. Approve the proposal manually.
 6. Click **Refresh briefing** and inspect current focus, changes, blockers, pending review, and the suggested next action.
 
-The Resident Wiki Agent should recognize the changes despite never participating in the browser-agent conversation. It is not the source of truth: it interprets the same structured state as everyone else. Use **Reset demo** before testing if another visitor has modified it.
+The Resident Agent should recognize the changes despite never participating in the browser-agent conversation. It is a read-only continuity layer that adapts its analysis to the active workspace view and persists those analyses as durable snapshots. It is not the source of truth: it interprets the same structured state as everyone else. Use **Reset demo** before testing if another visitor has modified it.
+
+Resident analysis modes are: Overview → workspace continuity, Tasks → execution focus, Decisions → decision review, Knowledge → knowledge health, and Activity → change interpretation. Analyses are persisted per workspace and mode and reused across navigation, reloads, and restarts. They are only regenerated when explicitly requested. If workspace activity changes afterward, the snapshot remains visible and is marked **STALE**.
+
+**Copy agent handoff** deterministically combines structured workspace state with the latest Overview analysis. It does not call the model or create an activity event.
 
 The submission story is: create a workspace for any real body of work, let humans and multiple agents share it, keep recommendations reviewable, and preserve an attributable history. Compa Friki is the concise proof—not the limit of the product.
 
@@ -204,7 +208,7 @@ Relevant history:
 | Variable | Purpose | Default |
 | --- | --- | --- |
 | `OPENAI_API_KEY` | Server-only credential for the internal agent | none |
-| `OPENAI_MODEL` | Model used by the internal agent | `gpt-5.4` |
+| `OPENAI_MODEL` | Model used by the Resident Agent | `gpt-5.4-nano` |
 | `APP_PASSWORD` | Password required to access the application | required |
 | `APP_SESSION_SECRET` | Random server-only key used to sign persistent sessions | required |
 | `PORT` | Express server port | `3001` |

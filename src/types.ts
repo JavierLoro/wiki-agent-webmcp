@@ -10,6 +10,7 @@ export interface WorkspaceInfo {
   slug: string;
   type: WorkspaceType;
   description: string;
+  context: string;
   status: string;
   parent_workspace_id: string | null;
   created_at: string;
@@ -90,15 +91,24 @@ export interface DecisionProposal {
   created_at: string;
 }
 
-export interface WorkspaceBriefing {
+export type AnalysisMode = "overview" | "tasks" | "decisions" | "knowledge" | "activity";
+
+export interface AnalysisSection {
+  key: string;
+  title: string;
+  items: string[];
+  highlight?: boolean;
+  suggestedAction?: string;
+}
+
+export interface ResidentAnalysis {
   workspace_id: string;
-  current_focus: string;
-  recent_changes: string[];
-  blockers: string[];
-  pending_review: string[];
-  suggested_next_action: string;
+  mode: AnalysisMode;
+  sections: AnalysisSection[];
   generated_at: string;
+  source_last_activity_at: string | null;
   agent_run_id: string | null;
+  stale: boolean;
 }
 
 export interface Workspace {
@@ -110,5 +120,5 @@ export interface Workspace {
   activity: ActivityEvent[];
   children: WorkspaceInfo[];
   decisionProposals: DecisionProposal[];
-  briefing: WorkspaceBriefing | null;
+  analyses: ResidentAnalysis[];
 }

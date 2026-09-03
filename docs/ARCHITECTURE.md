@@ -24,7 +24,7 @@ Workspace (type, context, optional parent)
 ├── Child Workspaces
 ├── Activity Events
 ├── Agent Runs
-├── Workspace Briefing
+├── Resident Analyses (workspace + mode)
 └── Agent Session
 ```
 
@@ -43,7 +43,9 @@ Successful WebMCP writes emit `wikiagent:changed`; the React application listens
 ```text
 Briefing UI → POST /api/agent/briefing → persistent Session → Resident Wiki Agent
                                                           ↓
-                                            workspace_briefings + agent_runs
+                                            resident_analyses + agent_runs
+
+Each analysis is keyed by workspace and mode (`overview`, `tasks`, `decisions`, `knowledge`, or `activity`). Navigation only reads persisted snapshots. A model call occurs only after an explicit **Generate analysis** or **Refresh analysis** action. The saved source activity timestamp supports stale detection without automatic regeneration.
 ```
 
 Agent runs and session items are persisted independently from structured project entities.
