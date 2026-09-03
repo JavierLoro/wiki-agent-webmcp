@@ -276,7 +276,7 @@ In a WebMCP-capable browser, ask an external agent to list the workspaces and in
 
 For an existing project, ask the agent to analyze its public GitHub URL. Review the evidence, questions, risks, and suggested work in the Import Preview, then authorize creation from the UI.
 
-Use **Reset demo** to restore the seeded esigglol and LockerBoard workspaces. Reset also removes imported and user-created workspaces, so do not use it for state you need to preserve.
+Use **Reset demo** to restore the seeded esigglol and LockerBoard workspaces. Reset also removes imported and user-created workspaces, so do not use it for state you need to preserve. Fresh databases seed only these two workspaces; an existing database may retain the legacy Compa Friki workspace until Reset is explicitly run.
 
 ## Documentation
 
