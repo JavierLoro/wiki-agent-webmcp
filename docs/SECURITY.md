@@ -4,6 +4,8 @@
 
 This MVP is a controlled hackathon demonstration and has no authentication. Do not treat it as an internet-ready multi-user service. A production deployment must add authentication, authorization, rate limits, input limits, CSRF protections where applicable, and an audit trail for every mutation.
 
+The public challenge deployment intentionally requires no authentication so judges can test it freely. It uses shared demo state; do not enter sensitive or production data, and use **Reset demo** before testing if another visitor has modified the workspace.
+
 An agent should receive no more authority through WebMCP than the current user has through the application.
 
 ## Secrets
