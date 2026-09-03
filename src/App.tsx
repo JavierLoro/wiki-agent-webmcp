@@ -1,5 +1,5 @@
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { approveDecisionProposal, chatWithWikiAgent, getWorkspaceById, listWorkspaces, rejectDecisionProposal, resetDemo, updateTask } from "./api";
+import { approveDecisionProposal, chatWithWikiAgent, createWorkspace, getWorkspaceById, listWorkspaces, rejectDecisionProposal, resetDemo, updateTask } from "./api";
 import { isWebMCPAvailable, WEBMCP_STATUS_EVENT } from "./webmcp";
 import type { ActivityEvent, AgentRun, Decision, DecisionProposal, KnowledgeItem, Task, TaskStatus, Workspace, WorkspaceSummary } from "./types";
 
@@ -41,6 +41,9 @@ export default function App() {
   const [changingTask, setChangingTask] = useState<string | null>(null);
   const [reviewingProposal, setReviewingProposal] = useState<string | null>(null);
   const [webMcpAvailable, setWebMcpAvailable] = useState(isWebMCPAvailable());
+  const [showNewWorkspace, setShowNewWorkspace] = useState(false);
+  const [creatingWorkspace, setCreatingWorkspace] = useState(false);
+  const [newWorkspace, setNewWorkspace] = useState({ name: "", type: "general" as "general" | "software_project" | "hardware_project" | "research" | "organization" | "event", description: "" });
 
   const loadWorkspace = useCallback(async (workspaceId: string, quiet = false) => {
     if (quiet) setRefreshing(true);
@@ -127,6 +130,21 @@ export default function App() {
     finally { setReviewingProposal(null); }
   }
 
+  async function handleCreateWorkspace(event: FormEvent) {
+    event.preventDefault();
+    if (!newWorkspace.name.trim() || creatingWorkspace) return;
+    setCreatingWorkspace(true); setError(null);
+    try {
+      const created = await createWorkspace({ name: newWorkspace.name.trim(), type: newWorkspace.type, description: newWorkspace.description.trim() || undefined });
+      const items = await listWorkspaces();
+      setWorkspaces(items); setShowNewWorkspace(false); setNewWorkspace({ name: "", type: "general", description: "" });
+      setAgentInput(""); setAgentOutput(""); setTab("tasks");
+      const url = new URL(window.location.href); url.searchParams.set("workspace", created.slug); window.history.replaceState({}, "", url);
+      await loadWorkspace(created.id);
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not create workspace."); }
+    finally { setCreatingWorkspace(false); }
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -148,6 +166,7 @@ export default function App() {
               <span><strong>{item.name}</strong><small>{formatWorkspaceType(item.type)} · {item.open_task_count} open</small></span>
               {item.id === workspace.workspace.id && <i />}
             </button>)}
+            <button className="new-workspace-button" onClick={() => setShowNewWorkspace(true)}><span>+</span> New Workspace</button>
           </section>
         </div>
         <div className="sidebar-footer">
@@ -158,9 +177,9 @@ export default function App() {
       </aside>
 
       <main className="main" id="main-content">
-        <header className="mobile-header"><span className="brand-mark mini">W</span><strong>Wiki Agent</strong><button className="mobile-reset" onClick={handleReset} aria-label="Reset demo"><Icon name="reset" /></button></header>
+        <header className="mobile-header"><span className="brand-mark mini">W</span><strong>Wiki Agent</strong><div className="mobile-actions"><button className="mobile-new" onClick={() => setShowNewWorkspace(true)}>+ New workspace</button><button className="mobile-reset" onClick={handleReset} aria-label="Reset demo"><Icon name="reset" /></button></div></header>
         <section className="project-header">
-          <div><div className="eyebrow"><span />Active workspace · {formatWorkspaceType(workspace.workspace.type)}</div><h1>{workspace.workspace.name}</h1><p>{workspace.workspace.description}</p></div>
+          <div><div className="eyebrow"><span />Active workspace · {formatWorkspaceType(workspace.workspace.type)}</div><h1>{workspace.workspace.name}</h1><p>{workspace.workspace.description || "A durable workspace ready for human-agent collaboration."}</p><small className="product-positioning">Persistent shared workspaces for humans and AI agents. Create a workspace, then collaborate on the same durable state.</small></div>
           <span className="status-pill"><span />{workspace.workspace.status}</span>
         </section>
 
@@ -175,13 +194,14 @@ export default function App() {
 
         <div className="content-grid">
           <section className="workspace-panel" aria-label="Project workspace">
-            {workspace.decisionProposals.filter((proposal) => proposal.status === "pending").length > 0 && <section className="proposal-section" aria-label="Pending decision proposals">
+            <section className={`proposal-section ${workspace.decisionProposals.filter((proposal) => proposal.status === "pending").length ? "" : "empty"}`} aria-label="Pending decision proposals">
               <div className="proposal-section-title"><div><span>Pending review · {workspace.decisionProposals.filter((proposal) => proposal.status === "pending").length}</span><h2>Agent proposals awaiting your review</h2></div><Icon name="spark" /></div>
+              {workspace.decisionProposals.filter((proposal) => proposal.status === "pending").length === 0 && <p className="proposal-empty">No proposals awaiting review.</p>}
               {workspace.decisionProposals.filter((proposal) => proposal.status === "pending").map((proposal) => <article className="proposal-card" key={proposal.id}>
                 <div className="proposal-content"><span>Proposed by {humanizeActor(proposal.proposed_by)}</span><h3>{proposal.title}</h3><p>{proposal.proposed_decision}</p>{proposal.rationale && <small>{proposal.rationale}</small>}</div>
                 <div className="proposal-actions"><button className="reject" disabled={reviewingProposal === proposal.id} onClick={() => void reviewProposal(proposal, "reject")}>Reject</button><button className="approve" disabled={reviewingProposal === proposal.id} onClick={() => void reviewProposal(proposal, "approve")}><Icon name="check" />{reviewingProposal === proposal.id ? "Reviewing…" : "Approve"}</button></div>
               </article>)}
-            </section>}
+            </section>
             <div className="tabs" role="tablist" aria-label="Workspace sections">
               {tabs.map((item) => <button key={item.id} id={`tab-${item.id}`} role="tab" aria-selected={tab === item.id} aria-controls="workspace-content" className={tab === item.id ? "tab active" : "tab"} onClick={() => setTab(item.id)}>{item.label}<span>{item.id === "tasks" ? workspace.tasks.length : item.id === "decisions" ? workspace.decisions.length : item.id === "knowledge" ? workspace.knowledge.length : item.id === "activity" ? workspace.activity.length : workspace.agentRuns.length}</span></button>)}
               {refreshing && <span className="syncing" aria-label="Syncing workspace" />}
@@ -210,6 +230,18 @@ export default function App() {
         </div>
         <footer className="app-footer"><span><Icon name="lock" />Workspace state persists across agents and sessions</span><span>One workspace. Many agents.</span></footer>
       </main>
+      {showNewWorkspace && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !creatingWorkspace) setShowNewWorkspace(false); }}>
+        <section className="workspace-modal" role="dialog" aria-modal="true" aria-labelledby="new-workspace-title">
+          <div className="modal-header"><div><span>Create workspace</span><h2 id="new-workspace-title">Start a durable shared space</h2></div><button type="button" onClick={() => setShowNewWorkspace(false)} aria-label="Close new workspace form">×</button></div>
+          <p>Humans and agents will collaborate on the same persistent state.</p>
+          <form onSubmit={handleCreateWorkspace}>
+            <label>Name<input autoFocus required maxLength={120} value={newWorkspace.name} onChange={(event) => setNewWorkspace((value) => ({ ...value, name: event.target.value }))} placeholder="My Research Project" /></label>
+            <label>Type<select value={newWorkspace.type} onChange={(event) => setNewWorkspace((value) => ({ ...value, type: event.target.value as typeof value.type }))}><option value="general">General</option><option value="software_project">Software project</option><option value="hardware_project">Hardware project</option><option value="research">Research</option><option value="organization">Organization</option><option value="event">Event</option></select></label>
+            <label>Description <span>Optional</span><textarea maxLength={600} rows={3} value={newWorkspace.description} onChange={(event) => setNewWorkspace((value) => ({ ...value, description: event.target.value }))} placeholder="Researching local-first collaboration tools and agent workflows." /></label>
+            <div className="modal-actions"><button type="button" className="cancel" onClick={() => setShowNewWorkspace(false)} disabled={creatingWorkspace}>Cancel</button><button type="submit" className="create" disabled={creatingWorkspace || !newWorkspace.name.trim()}>{creatingWorkspace ? "Creating…" : "Create workspace"}</button></div>
+          </form>
+        </section>
+      </div>}
     </div>
   );
 }
@@ -217,7 +249,7 @@ export default function App() {
 function Stat({ label, value, tone }: { label: string; value: number; tone: string }) { return <article className={`stat-card ${tone}`}><span>{label}</span><strong>{String(value).padStart(2, "0")}</strong><i /></article>; }
 
 function TaskList({ tasks, changingTask, onStatus }: { tasks: Task[]; changingTask: string | null; onStatus: (task: Task, status: TaskStatus) => void }) {
-  if (!tasks.length) return <Empty message="No tasks in this workspace yet." />;
+  if (!tasks.length) return <Empty message="No tasks yet. Humans and agents can add the first piece of work here." />;
   return <div className="list">{tasks.map((task) => <article key={task.id} className={`list-item task-item status-${task.status}`}>
     <div className="item-row"><div className="task-heading"><span className="task-check"><Icon name={task.status === "done" ? "check" : task.status === "blocked" ? "lock" : "clock"} /></span><h3>{task.title}</h3></div><span className={`priority ${task.priority}`}>{task.priority}</span></div>
     {task.description && <p>{task.description}</p>}
@@ -225,10 +257,10 @@ function TaskList({ tasks, changingTask, onStatus }: { tasks: Task[]; changingTa
   </article>)}</div>;
 }
 
-function DecisionList({ decisions }: { decisions: Decision[] }) { return decisions.length ? <div className="list">{decisions.map((item) => <article key={item.id} className="list-item decision-item"><div className="decision-mark"><Icon name="check" /></div><div><h3>{item.title}</h3><p>{item.decision}</p>{item.rationale && <blockquote>{item.rationale}</blockquote>}<div className="meta"><span>decided by {humanizeActor(item.created_by)}</span><time dateTime={item.created_at}>{relativeDate(item.created_at)}</time></div></div></article>)}</div> : <Empty message="No decisions have been recorded." />; }
-function KnowledgeList({ items }: { items: KnowledgeItem[] }) { return items.length ? <div className="list note-grid">{items.map((item) => <article key={item.id} className={`list-item note-item knowledge-${item.type}`}><div className="note-top"><span><Icon name="book" /></span><span className="knowledge-type">{item.type}</span><time dateTime={item.updated_at}>{relativeDate(item.updated_at)}</time></div><h3>{item.title}</h3><p>{item.content}</p><div className="meta"><span>by {humanizeActor(item.created_by)}</span></div></article>)}</div> : <Empty message="No durable knowledge has been added." />; }
+function DecisionList({ decisions }: { decisions: Decision[] }) { return decisions.length ? <div className="list">{decisions.map((item) => <article key={item.id} className="list-item decision-item"><div className="decision-mark"><Icon name="check" /></div><div><h3>{item.title}</h3><p>{item.decision}</p>{item.rationale && <blockquote>{item.rationale}</blockquote>}<div className="meta"><span>decided by {humanizeActor(item.created_by)}</span><time dateTime={item.created_at}>{relativeDate(item.created_at)}</time></div></div></article>)}</div> : <Empty message="No confirmed decisions yet." />; }
+function KnowledgeList({ items }: { items: KnowledgeItem[] }) { return items.length ? <div className="list note-grid">{items.map((item) => <article key={item.id} className={`list-item note-item knowledge-${item.type}`}><div className="note-top"><span><Icon name="book" /></span><span className="knowledge-type">{item.type}</span><time dateTime={item.updated_at}>{relativeDate(item.updated_at)}</time></div><h3>{item.title}</h3><p>{item.content}</p><div className="meta"><span>by {humanizeActor(item.created_by)}</span></div></article>)}</div> : <Empty message="No knowledge items yet." />; }
 function ActivityList({ items }: { items: ActivityEvent[] }) { return items.length ? <div className="activity-list">{items.map((item) => <article key={item.id} className="activity-item"><span className={`activity-dot source-${item.source}`} /><div><div><strong>{humanizeActor(item.actor)}</strong><span className={`source-badge ${item.source}`}>{humanizeSource(item.source)}</span><time dateTime={item.created_at}>{relativeDate(item.created_at)}</time></div><p>{humanizeAction(item.action)}</p>{item.summary && <small>{item.summary}</small>}</div></article>)}</div> : <Empty message="No workspace activity yet." />; }
-function RunList({ runs }: { runs: AgentRun[] }) { return runs.length ? <div className="list">{runs.map((run) => <article key={run.id} className="list-item run-item"><div className="item-row"><h3><span className="agent-orb small"><Icon name="spark" /></span>{run.agent_name}</h3><span className={`run-status ${run.status}`}>{run.status}</span></div><div className="run-copy"><span>Prompt</span><p>{run.input}</p><span>Response</span><p>{run.output}</p></div><div className="meta"><time dateTime={run.created_at}>{relativeDate(run.created_at)}</time></div></article>)}</div> : <Empty message="No agent runs yet. Ask Wiki Agent to start the shared history." />; }
+function RunList({ runs }: { runs: AgentRun[] }) { return runs.length ? <div className="list">{runs.map((run) => <article key={run.id} className="list-item run-item"><div className="item-row"><h3><span className="agent-orb small"><Icon name="spark" /></span>{run.agent_name}</h3><span className={`run-status ${run.status}`}>{run.status}</span></div><div className="run-copy"><span>Prompt</span><p>{run.input}</p><span>Response</span><p>{run.output}</p></div><div className="meta"><time dateTime={run.created_at}>{relativeDate(run.created_at)}</time></div></article>)}</div> : <Empty message="No agent runs yet." />; }
 function Empty({ message }: { message: string }) { return <div className="empty-list"><Icon name="book" /><p>{message}</p></div>; }
 function LoadingScreen() { return <div className="center-screen"><div className="loader-mark">W</div><span>Opening shared memory…</span></div>; }
 function ErrorScreen({ message, retry }: { message: string; retry: () => void }) { return <div className="center-screen error-screen"><div className="loader-mark">W</div><h1>Workspace unavailable</h1><p>{message}</p><button onClick={retry}>Try again</button></div>; }

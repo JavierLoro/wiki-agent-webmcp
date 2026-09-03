@@ -13,16 +13,19 @@ No account, payment, invitation, or judge-provided API key is required. Recommen
 
 The public demo uses shared SQLite workspace state. Use **Reset demo** before testing if another visitor has modified it.
 
+Position the product as a user-created workspace platform for makers, research teams, product teams, and agent builders. Compa Friki is the memorable demonstration of the model, not a hard-coded single-project product.
+
 ## Final test
 
 1. Reset the demo and confirm Compa Friki and LockerBoard appear.
-2. Ask a browser agent to list and compare the workspaces without modifying them.
-3. Ask it to propose the LP102228 battery, store its dimensions as a finding, and create a high-priority validation task without confirming the proposal.
-4. Confirm the pending proposal, knowledge item, task, and WebMCP activity appear immediately.
-5. Approve the proposal manually.
-6. Ask Wiki Agent what changed and what to do next.
-7. Confirm it reads the approved decision and related work from shared state.
-8. Reset again and confirm proposals, conversations, activity, and mutations are gone.
+2. Briefly open **New workspace** to show that users can supply a name, type, and context; continue the main story in Compa Friki.
+3. Ask a browser agent to list and compare the workspaces without modifying them.
+4. Ask it to propose the LP102228 battery, store its dimensions as a finding, and create a high-priority validation task without confirming the proposal.
+5. Confirm the pending proposal, knowledge item, task, and WebMCP activity appear immediately.
+6. Approve the proposal manually.
+7. Ask Wiki Agent what changed and what to do next.
+8. Confirm it reads the approved decision and related work from shared state.
+9. Create a disposable test workspace, reset again, and confirm it plus proposals, conversations, activity, and mutations are gone while the seed returns.
 
 ## Before submitting
 

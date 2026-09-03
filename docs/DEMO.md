@@ -6,6 +6,8 @@ Target duration: 2–3 minutes.
 
 Show the seeded Compa Friki workspace—tasks, decisions, typed knowledge, activity, and runs—and explain that Workspace Platform owns persistence while Wiki Agent is one consumer.
 
+Briefly click **New workspace** and show the name, type, and context fields. Explain that teams can create spaces for their own projects, research, or campaigns, then cancel and return to Compa Friki for the focused demo.
+
 ## 2. Let WebMCP read
 
 In a WebMCP-capable environment, ask:
@@ -42,4 +44,4 @@ Close with: “Agents come and go. Your workspace remembers. One persistent work
 
 ## Reset
 
-Use the **Reset demo** button or send `POST /api/demo/reset` before each recording.
+Use the **Reset demo** button or send `POST /api/demo/reset` before each recording. Reset restores the seed and removes user-created test workspaces.

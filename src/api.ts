@@ -25,6 +25,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const getWorkspace = () => request<Workspace>("/api/bootstrap");
 export const listWorkspaces = () => request<WorkspaceSummary[]>("/api/workspaces");
+export const createWorkspace = (input: { name: string; type: "general" | "software_project" | "hardware_project" | "research" | "organization" | "event"; description?: string }) =>
+  request<WorkspaceInfo>("/api/workspaces", { method: "POST", body: JSON.stringify(input) });
 export const getWorkspaceById = (workspaceId: string) => request<Workspace>(`/api/workspaces/${encodeURIComponent(workspaceId)}/context`);
 export const getWorkspaceChildren = (workspaceId: string) => request<WorkspaceInfo[]>(`/api/workspaces/${encodeURIComponent(workspaceId)}/children`);
 export const getWorkspaceActivity = (workspaceId: string) => request<ActivityEvent[]>(`/api/workspaces/${encodeURIComponent(workspaceId)}/activity`);

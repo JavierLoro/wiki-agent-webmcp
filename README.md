@@ -14,6 +14,14 @@ Workspaces outlive conversations. They preserve tasks, decisions, typed knowledg
 
 A person works through the visual dashboard. A browser agent discovers semantic operations through WebMCP. The server-side Wiki Agent uses the same SQLite data and retains its conversation between restarts. Changes made by any actor become visible to the others.
 
+It is designed for makers, research teams, product teams, and agent builders who need several people and agents to continue the same body of work without repeatedly rebuilding context.
+
+## Create your own workspace
+
+Use **New workspace** to create a durable space for your own hardware project, software project, research effort, or campaign. Give it a name, type, and context; it immediately becomes available to the UI, Wiki Agent, and workspace-aware browser agents.
+
+The included Compa Friki workspace remains the guided challenge demo. Creating a workspace is shown briefly to establish that this is a platform rather than a fixed showcase.
+
 ## Final WebMCP surface
 
 1. `workspace.list`
@@ -144,7 +152,7 @@ Then:
 
 The browser agent should call `workspace.propose_decision`, `workspace.add_knowledge`, and `workspace.create_task`; the dashboard should refresh immediately. Approve the proposal manually, then ask the integrated Wiki Agent what changed to demonstrate that both agents share the same state.
 
-Use **Reset demo** in the UI, or `POST /api/demo/reset`, to restore the seeded Compa Friki and LockerBoard workspaces.
+Use **Reset demo** in the UI, or `POST /api/demo/reset`, to restore the seeded Compa Friki and LockerBoard workspaces. Reset also removes user-created test workspaces, so do not use it for data you need to keep.
 
 ## Judge Testing
 
@@ -167,6 +175,8 @@ Suggested test:
 6. Ask Wiki Agent: “What changed in this workspace and what should I do next?”
 
 Wiki Agent should recognize the changes despite not participating in the browser-agent conversation. The public demo uses shared state; use **Reset demo** before testing if another visitor has modified it.
+
+The submission story is: create a workspace for any real body of work, let humans and multiple agents share it, keep recommendations reviewable, and preserve an attributable history. Compa Friki is the concise proof—not the limit of the product.
 
 ## Hackathon Development
 
