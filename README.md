@@ -1,28 +1,85 @@
 # Workspace Platform
 
-**Persistent shared context for humans and AI agents.**
+**A self-hosted persistent workspace for humans and AI agents.**
 
 AI conversations are temporary. Projects are not.
 
-Workspace Platform moves continuity into structured shared state that humans, browser agents through WebMCP, and the persistent Wiki Agent can inspect and modify together. The workspace—not a chat or an individual agent—is the source of truth.
+Workspace Platform gives humans and AI agents a shared, structured source of truth for long-running work. External agents collaborate through WebMCP, humans remain in control of authoritative decisions, and a read-only Resident Agent provides contextual continuity across the workspace.
 
-> One persistent workspace. Many agents.
+> **Agents come and go. Your workspace remembers.**
 
-## Why it exists
+## Why
 
-Workspaces outlive conversations. They preserve tasks, decisions, typed knowledge, activity, execution history, and conversational continuity, so each agent can begin from durable state instead of reconstructing it from chat.
+Working with multiple AI agents creates a continuity problem. Project context becomes fragmented across conversations, agents, notes, task trackers, and repositories. Each new agent may understand only part of what has already happened.
 
-A person works through the visual dashboard. A browser agent discovers semantic operations through WebMCP. The Resident Wiki Agent produces a persistent operational briefing from the same SQLite state. Changes made by any actor become visible to the others.
+Workspace Platform moves that continuity into durable project state:
 
-It is designed for makers, research teams, product teams, and agent builders who need several people and agents to continue the same body of work without repeatedly rebuilding context.
+- tasks and blockers
+- confirmed decisions and pending proposals
+- typed knowledge
+- attributable activity
+- agent-generated analysis
+- project provenance
 
-## Create your own workspace
+Agents do not need to share conversations. They share the workspace.
 
-Use **New workspace** to create a durable space for your own hardware project, software project, research effort, or campaign. Give it a name, type, and context; it immediately becomes available to the UI, Wiki Agent, and workspace-aware browser agents.
+## How it works
 
-The included Compa Friki workspace remains the guided challenge demo. Creating a workspace is shown briefly to establish that this is a platform rather than a fixed showcase.
+### Human
 
-## Final WebMCP surface
+Uses the visual workspace, reviews proposals, manages projects, and controls authoritative decisions.
+
+### External AI Agent
+
+Connects through WebMCP to discover workspaces, inspect context, create or update tasks, add knowledge, and propose decisions.
+
+### Resident Agent
+
+A read-only continuity layer. It interprets the current workspace according to the active view:
+
+- Overview → project continuity
+- Tasks → blockers, dependencies, and execution
+- Decisions → confirmed direction and pending proposals
+- Knowledge → missing context and contradictions
+- Activity → what changed and why it matters
+
+Analyses are persisted per workspace and view. Navigation does not cause new model calls.
+
+### Import Agent
+
+An ephemeral specialist that bootstraps existing public GitHub projects. It progressively explores only the evidence needed to understand a project:
+
+```text
+metadata → file tree → README → manifests → issues/docs → selected files
+```
+
+Exploration is bounded by explicit limits on calls, files, issues, bytes, tokens, and estimated cost. It produces an evidence-backed preview; nothing becomes durable workspace state until a human confirms the import.
+
+## Repository import
+
+Existing projects can be bootstrapped from public GitHub repositories. The importer does not clone or continuously synchronize the repository. It builds enough understanding to create a useful initial workspace while separating:
+
+- facts
+- inferences
+- unknowns
+- suggested tasks
+- decision proposals
+- open questions
+- risks
+
+Every important generated item retains source-level provenance.
+
+```text
+Repository → Agentic analysis → Import preview → Human approval → Structured workspace
+```
+
+After confirmation, the imported workspace behaves like any manually created workspace and is available to external WebMCP agents and the Resident Agent.
+
+Current import scope is intentionally limited to public GitHub repositories, their default branch, textual content, and one-time initial import. Private repositories, OAuth, synchronization, webhooks, branch selection, repository mutation, and automatic re-import are not supported.
+
+## WebMCP
+
+Workspace Platform exposes semantic application capabilities through `document.modelContext.registerTool(...)`:
 
 1. `workspace.list`
 2. `workspace.get_context`
@@ -37,31 +94,52 @@ The included Compa Friki workspace remains the guided challenge demo. Creating a
 11. `workspace.analyze_repository`
 12. `workspace.get_import_preview`
 
-Agents can propose decisions. Humans approve or reject them. Only approved decisions become authoritative workspace state.
+These are domain operations rather than UI automation. An agent interacts directly with the workspace model instead of locating buttons or reconstructing the interface visually. The React application remains fully usable when WebMCP is unavailable.
 
-These are domain operations, not automated clicks. WebMCP is progressive enhancement: the React interface remains usable in browsers that do not expose `document.modelContext`.
+Repository crawling primitives remain private to the Import Agent. WebMCP exposes the product capability to analyze a repository, not low-level file or issue readers.
 
-## Bounded agentic repository import
+## Human control
 
-The platform can analyze a public repository and prepare an evidence-backed import preview of proposed tasks, knowledge, and decisions. The preview is not authoritative state: a human chooses what to accept, and decision-like output remains subject to approval.
+Agent proposals and confirmed decisions are deliberately different. An external agent may propose a decision, but only human approval makes it authoritative workspace state.
 
-This is a one-shot context import, not clone, synchronization, mirroring, background indexing, or continuous GitHub integration. Hard budgets limit calls, files, issues, bytes, tokens, output, and estimated cost.
+Repository imports follow the same principle:
+
+> **Agents prepare. Humans authorize.**
 
 ## Architecture
 
 ```text
-Human ───────────────► Visual UI ───────────────┐
-External AI Agent ───► WebMCP ─────────────────┤
-Resident Wiki Agent ─► Continuity Briefing ────┤
-                                                ▼
-                                  Shared Workspace State
+                     Human
+                       │
+                  Visual UI
+                       │
+                       ▼
+                Shared Workspace
+                  /     |      \
+                 /      |       \
+                ▼       ▼        ▼
+        WebMCP Agent  Resident  Import Agent
+            acts      interprets bootstraps
 ```
 
-Structured workspace data is authoritative. Conversational memory supports continuity but never silently overrides recorded workspace state.
+The shared workspace is the source of truth.
+
+- External agents act.
+- Humans authorize.
+- Resident agents interpret.
+- Specialist agents bootstrap.
+- The workspace remembers.
+
+## Create a workspace
+
+Create a workspace manually or bootstrap one from an existing public GitHub repository. A manual workspace only needs a name, project type, and optional context. Once created, it becomes immediately discoverable through WebMCP.
 
 ## Run locally
 
-Requirements: Node.js 22 or newer and a build toolchain supported by `better-sqlite3`.
+Requirements:
+
+- Node.js 22+
+- a build toolchain compatible with `better-sqlite3`
 
 ```bash
 npm install
@@ -69,31 +147,33 @@ cp .env.example .env
 npm run dev
 ```
 
-On Windows PowerShell, use `Copy-Item .env.example .env`. Add an `OPENAI_API_KEY` to enable the internal agent; the dashboard and project API can still be exercised independently.
+On Windows PowerShell:
 
-- Dashboard: `http://localhost:5173`
-- API health: `http://localhost:3001/api/health`
-
-Development runs Vite and the API together. API calls from the frontend are proxied to port 3001.
-
-## Verify and run production locally
-
-```bash
-npm run check
-npm start
+```powershell
+Copy-Item .env.example .env
 ```
 
-`npm run check` type-checks both client and server and creates the Vite production bundle. When `dist/` exists, the Express server serves it alongside `/api`.
+- Frontend: `http://localhost:5173`
+- API: `http://localhost:3001`
+- Health: `http://localhost:3001/api/health`
 
-## Docker deployment
+Development runs Vite and the API together. Frontend API calls are proxied to port 3001.
 
-The production image contains the compiled React frontend and Express backend in one service. SQLite remains on the host through the explicit `./data:/data` bind mount.
+## Docker
+
+Docker Compose is the recommended self-hosted deployment. Copy the environment template, set the required access secrets, and optionally configure the OpenAI models and import budgets.
 
 ```bash
 cp .env.example .env
-# Edit .env: set APP_PASSWORD and APP_SESSION_SECRET. Set OPENAI_API_KEY if needed.
+# Edit .env and set APP_PASSWORD and APP_SESSION_SECRET
 docker compose up -d --build
 docker compose logs -f
+```
+
+The single application service contains the React frontend, Express backend, Resident Agent, Import Agent, and SQLite persistence. SQLite is stored on the host at:
+
+```text
+./data/wiki-agent.db
 ```
 
 Routine operations:
@@ -104,36 +184,26 @@ docker compose down
 docker compose up -d
 ```
 
-From another machine, replace `SERVER_IP` with the Debian VM or LXC address:
+Check the deployment from another machine:
 
 - Application: `http://SERVER_IP:3001`
-- Health check: `http://SERVER_IP:3001/api/health`
+- Health: `http://SERVER_IP:3001/api/health`
 
-`HOST_PORT` controls the host port and defaults to `3001`; `PORT` controls the single internal HTTP listener and also defaults to `3001`.
-
-### SQLite persistence and backup
-
-The database is stored at `./data/wiki-agent.db` on the Docker host. Both `docker compose restart` and `docker compose down` followed by `docker compose up -d` preserve it.
+Both `docker compose restart` and `docker compose down` followed by `docker compose up -d` preserve the database. Do not delete `./data` or use `docker compose down -v` when you want to preserve workspace state.
 
 ### Access password
 
-The dashboard and every data API route require the single password configured as `APP_PASSWORD`. Generate `APP_SESSION_SECRET` with `openssl rand -hex 32`; it signs a 30-day persistent, `HttpOnly`, `SameSite=Strict` session cookie. Cloudflare Tunnel marks the cookie `Secure` on public HTTPS requests, while local HTTP remains usable for server checks. `/api/health` and the login/session endpoints stay public. Never use a `VITE_` prefix for either secret.
+The dashboard and data API require the password configured as `APP_PASSWORD`. `APP_SESSION_SECRET` signs a persistent 30-day, `HttpOnly`, `SameSite=Strict` session cookie.
 
-Do not delete `./data`. Do not use `docker compose down -v` when you intend to preserve state. The bind mount is intentionally visible on the host to simplify backup and migration.
-
-For a consistent backup before judging or updating, briefly stop the service, copy the complete data directory, and start it again:
+Generate a signing secret with:
 
 ```bash
-docker compose stop wiki-agent
-cp -a data "data-backup-$(date +%Y%m%d-%H%M%S)"
-docker compose start wiki-agent
+openssl rand -hex 32
 ```
 
-Stopping the writer ensures the SQLite database and any WAL files form a consistent copy.
+`/api/health` and the login/session endpoints remain public. Never expose `APP_PASSWORD`, `APP_SESSION_SECRET`, or `OPENAI_API_KEY` through `VITE_` variables or browser code.
 
-## Proxmox and Cloudflare Tunnel
-
-Run Docker Compose inside a Debian-based Proxmox VM or LXC with nesting and Docker support. No Nginx, Traefik, certificate, or HTTPS listener is included in this project.
+## Proxmox + Cloudflare Tunnel
 
 ```text
 Internet
@@ -144,118 +214,91 @@ http://IP_LXC_O_VM:3001
    ↓
 Docker Compose
    ↓
-Wiki Agent
+Workspace Platform
    ↓
 SQLite at ./data/wiki-agent.db
 ```
 
-In Cloudflare Tunnel, publish a hostname such as `wiki-agent.example.com` and point its HTTP service to `http://IP_DEL_SERVIDOR:3001`. Cloudflare provides the public HTTPS reverse proxy and TLS termination; the container exposes only HTTP on the internal network.
+Run Docker Compose inside a Debian-based Proxmox VM or LXC with Docker support. In Cloudflare Tunnel, publish a hostname such as `wiki-agent.example.com` and point its HTTP service to:
 
-The deployment uses the password configured in `.env`. Restrict direct access to port 3001 at the network/firewall layer as appropriate and expose the public application through the tunnel.
+```text
+http://IP_DEL_SERVIDOR:3001
+```
 
-## Try the collaboration flow
-
-In a WebMCP-capable browser environment, open the deployed app and ask:
-
-> List the workspaces, inspect hardware, and summarize unresolved work and recent activity. Don't modify anything yet.
-
-Then:
-
-> In Compa Friki, propose LP102228 as the battery, store its dimensions as a finding, and create a high-priority validation task. Do not confirm the decision.
-
-The browser agent should call `workspace.propose_decision`, `workspace.add_knowledge`, and `workspace.create_task`; the dashboard should refresh immediately. Approve the proposal manually, then click **Refresh briefing** to demonstrate that both agents share the same state.
-
-Use **Reset demo** in the UI, or `POST /api/demo/reset`, to restore the seeded Compa Friki and LockerBoard workspaces. Reset also removes user-created test workspaces, so do not use it for data you need to keep.
-
-## Judge Testing
-
-Live demo: **TODO — add final HTTPS deployment URL**
-
-No account, payment, invitation, or judge-provided API key is required. The app is intended to be publicly testable.
-
-Recommended environments:
-
-- ChatGPT in-app browser with WebMCP support
-- Google Chrome with WebMCP enabled
-
-Suggested test:
-
-1. Open the live application and confirm the sidebar reports **WebMCP connected**.
-2. Ask: “List my workspaces and tell me which one needs attention first. Do not modify anything.”
-3. Ask: “In Compa Friki, propose LP102228 as the battery, store its dimensions as a finding, and create a high-priority validation task. Do not confirm the decision.”
-4. Confirm the UI shows a pending proposal, knowledge item, task, and WebMCP activity.
-5. Approve the proposal manually.
-6. Click **Refresh briefing** and inspect current focus, changes, blockers, pending review, and the suggested next action.
-
-The Resident Agent should recognize the changes despite never participating in the browser-agent conversation. It is a read-only continuity layer that adapts its analysis to the active workspace view and persists those analyses as durable snapshots. It is not the source of truth: it interprets the same structured state as everyone else. Use **Reset demo** before testing if another visitor has modified it.
-
-Resident analysis modes are: Overview → workspace continuity, Tasks → execution focus, Decisions → decision review, Knowledge → knowledge health, and Activity → change interpretation. Analyses are persisted per workspace and mode and reused across navigation, reloads, and restarts. They are only regenerated when explicitly requested. If workspace activity changes afterward, the snapshot remains visible and is marked **STALE**.
-
-**Copy agent handoff** deterministically combines structured workspace state with the latest Overview analysis. It does not call the model or create an activity event.
-
-The submission story is: create a workspace for any real body of work, let humans and multiple agents share it, keep recommendations reviewable, and preserve an attributable history. Compa Friki is the concise proof—not the limit of the product.
-
-## Hackathon Development
-
-This repository was created and meaningfully developed during the WebMCP Challenge submission period. Challenge-specific work includes:
-
-- multi-workspace support
-- semantic WebMCP tools
-- persistent activity auditing and actor attribution
-- agent decision proposals with human approval and rejection
-- Resident Wiki Agent continuity briefings with per-workspace persistence
-
-Relevant history:
-
-- `97888ad` — Initial Wiki Agent workspace platform
-- `6520975` — `feat: add audited multi-workspace collaboration flow`
-- `608c973` — `docs: update challenge architecture and demo flow`
+Cloudflare provides the public HTTPS reverse proxy and TLS termination. The application container exposes a single internal HTTP port and includes no Nginx, Traefik, or TLS configuration.
 
 ## Configuration
 
 | Variable | Purpose | Default |
 | --- | --- | --- |
-| `OPENAI_API_KEY` | Server-only credential for the internal agent | none |
-| `OPENAI_MODEL` | Model used by the Resident Agent | `gpt-5.4-nano` |
-| `OPENAI_IMPORT_MODEL` | Model used for repository analysis | `gpt-5.4-nano` |
-| `IMPORT_MAX_MODEL_CALLS` | Calls per import | `8` |
-| `IMPORT_MAX_FILES` | Files considered | `15` |
-| `IMPORT_MAX_ISSUES` | Issues considered | `8` |
-| `IMPORT_MAX_BYTES` | Source bytes fetched | `256000` |
-| `IMPORT_MAX_INPUT_TOKENS` | Estimated input tokens | `60000` |
-| `IMPORT_MAX_OUTPUT_TOKENS` | Output tokens | `8000` |
-| `IMPORT_MAX_ESTIMATED_COST` | Estimated USD cost | `0.03` |
-| `APP_PASSWORD` | Password required to access the application | required |
-| `APP_SESSION_SECRET` | Random server-only key used to sign persistent sessions | required |
-| `PORT` | Express server port | `3001` |
-| `HOST_PORT` | Host port published by Docker Compose | `3001` |
-| `DATABASE_PATH` | SQLite path (`/data/wiki-agent.db` in Docker) | `./data/wiki-agent.db` locally |
+| `OPENAI_API_KEY` | Server-side OpenAI API credential | none |
+| `OPENAI_MODEL` | Resident Agent model | `gpt-5.4-nano` |
+| `OPENAI_IMPORT_MODEL` | Import Agent model | `gpt-5.4-nano` |
+| `IMPORT_MAX_MODEL_CALLS` | Maximum model calls per import | `8` |
+| `IMPORT_MAX_FILES` | Maximum files inspected | `15` |
+| `IMPORT_MAX_ISSUES` | Maximum issues fully inspected | `8` |
+| `IMPORT_MAX_BYTES` | Maximum textual source bytes | `256000` |
+| `IMPORT_MAX_INPUT_TOKENS` | Import input-token budget | `60000` |
+| `IMPORT_MAX_OUTPUT_TOKENS` | Import output-token budget | `8000` |
+| `IMPORT_MAX_ESTIMATED_COST` | Maximum estimated import cost | `$0.03` |
+| `APP_PASSWORD` | Application access password | required |
+| `APP_SESSION_SECRET` | Session-signing secret | required |
+| `PORT` | Internal HTTP port | `3001` |
+| `HOST_PORT` | Docker host port | `3001` |
+| `DATABASE_PATH` | SQLite database location | environment-specific |
 
-Never place the API key in HTML, browser code, or a `VITE_` variable.
+## Security model
+
+Workspace and repository content is treated as untrusted data rather than agent instructions. Important authority boundaries:
+
+- external agents may perform explicitly exposed WebMCP operations
+- pending proposals are not authoritative decisions
+- humans approve durable decisions and imports
+- the Resident Agent is read-only
+- the Import Agent is ephemeral and cannot confirm its own output
+- server secrets never enter frontend assets or Docker build layers
+
+Public GitHub repository content may be processed by the optional Import Agent. Private repositories and GitHub OAuth are not supported.
+
+## Backup
+
+For a consistent SQLite backup, briefly stop the writer, copy the complete data directory, and start it again:
+
+```bash
+docker compose stop wiki-agent
+cp -a data "data-backup-$(date +%Y%m%d-%H%M%S)"
+docker compose start wiki-agent
+```
+
+## Example workflow
+
+In a WebMCP-capable browser, ask an external agent to list the workspaces and inspect one without making changes. Then ask it to create a task, add a finding, and propose a decision. The dashboard refreshes from the same persistent state; a human can review the proposal before approving it.
+
+For an existing project, ask the agent to analyze its public GitHub URL. Review the evidence, questions, risks, and suggested work in the Import Preview, then authorize creation from the UI.
+
+Use **Reset demo** to restore the seeded Compa Friki and LockerBoard workspaces. Reset also removes imported and user-created workspaces, so do not use it for state you need to preserve.
 
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
-- [WebMCP integration](docs/WEBMCP.md)
-- [Development and deployment plan](docs/DEVELOPMENT_PLAN.md)
-- [Demo script](docs/DEMO.md)
-- [Security model](docs/SECURITY.md)
-- [Submission readiness](docs/SUBMISSION.md)
+- [WebMCP](docs/WEBMCP.md)
+- [Security](docs/SECURITY.md)
+- [Demo](docs/DEMO.md)
+- [Development](docs/DEVELOPMENT_PLAN.md)
 
-## Third-party technologies
+## Technology
 
-- OpenAI Agents SDK — persistent internal Wiki Agent
-- React and Vite — browser interface and production build
-- Express — HTTP API and static application server
-- SQLite and better-sqlite3 — durable workspace and session persistence
-- Zod — runtime input validation
-
-No third-party data source or API is used besides OpenAI for the optional server-side Wiki Agent.
+- WebMCP
+- OpenAI Agents SDK
+- React and Vite
+- TypeScript and Node.js
+- Express
+- SQLite and `better-sqlite3`
+- Zod
+- Docker and Docker Compose
+- GitHub public repository data
+- Cloudflare Tunnel
 
 ## License
 
 Released under the [MIT License](LICENSE).
-
-## MVP boundaries
-
-This challenge build intentionally omits authentication, multi-user permissions, autonomous background execution, and rollback. Review the security notes before exposing it beyond a controlled demo. The next evolution is an orchestration layer where specialized research, coding, and QA agents return evidence and proposed changes to this shared, human-governed workspace.
