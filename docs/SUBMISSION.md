@@ -23,7 +23,7 @@ Position the product as a user-created workspace platform for makers, research t
 4. Ask it to propose the LP102228 battery, store its dimensions as a finding, and create a high-priority validation task without confirming the proposal.
 5. Confirm the pending proposal, knowledge item, task, and WebMCP activity appear immediately.
 6. Approve the proposal manually.
-7. Ask Wiki Agent what changed and what to do next.
+7. Click **Refresh briefing** and show how the Resident Wiki Agent identifies what changed, what is blocked, and what should happen next.
 8. Confirm it reads the approved decision and related work from shared state.
 9. Create a disposable test workspace, reset again, and confirm it plus proposals, conversations, activity, and mutations are gone while the seed returns.
 

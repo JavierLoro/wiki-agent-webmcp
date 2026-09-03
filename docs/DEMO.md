@@ -28,17 +28,15 @@ Optionally ask it to mark the enclosure task blocked until validation is complet
 
 ## 4. Show shared memory
 
-Switch to the integrated Wiki Agent and ask:
+Approve the pending proposal manually, then click **Refresh briefing** in the Resident Agent Briefing panel.
 
-Approve the pending proposal manually, then ask:
+It should summarize the approved battery decision, dimensions finding, validation task, current blocker, and next action from structured state—not from the browser agent's conversation.
 
-> What changed in this workspace, and what should I work on next?
-
-It should discover the approved battery decision, dimensions finding, validation task, and current blocker from structured state—not from the browser agent's conversation.
+Narrate: “The resident agent never participated in the browser-agent conversation. It understands what happened because both agents share the same workspace.”
 
 ## 5. Prove persistence
 
-Reload the page and show that the decision remains. Ask a contextual follow-up, then restart the backend and verify that the internal conversation also remains.
+Reload the page and show that the decision and briefing remain. Restart the backend and verify that the briefing still appears.
 
 Close with: “Agents come and go. Your workspace remembers. One persistent workspace. Many agents.”
 

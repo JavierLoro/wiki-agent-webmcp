@@ -1,5 +1,5 @@
-import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { approveDecisionProposal, chatWithWikiAgent, createWorkspace, getAuthSession, getWorkspaceById, listWorkspaces, login, logout, rejectDecisionProposal, resetDemo, updateTask } from "./api";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { approveDecisionProposal, createWorkspace, generateBriefing, getAuthSession, getWorkspaceById, listWorkspaces, login, logout, rejectDecisionProposal, resetDemo, updateTask } from "./api";
 import { isWebMCPAvailable, WEBMCP_STATUS_EVENT } from "./webmcp";
 import type { ActivityEvent, AgentRun, Decision, DecisionProposal, KnowledgeItem, Task, TaskStatus, Workspace, WorkspaceSummary } from "./types";
 
@@ -42,9 +42,7 @@ function WorkspaceApp({ onLogout }: { onLogout: () => void }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [agentInput, setAgentInput] = useState("");
-  const [agentOutput, setAgentOutput] = useState("");
-  const [agentRunning, setAgentRunning] = useState(false);
+  const [briefingRunning, setBriefingRunning] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [changingTask, setChangingTask] = useState<string | null>(null);
   const [reviewingProposal, setReviewingProposal] = useState<string | null>(null);
@@ -84,31 +82,18 @@ function WorkspaceApp({ onLogout }: { onLogout: () => void }) {
 
   const stats = useMemo(() => ({
     open: workspace?.tasks.filter((item) => item.status !== "done").length ?? 0,
+    done: workspace?.tasks.filter((item) => item.status === "done").length ?? 0,
     blocked: workspace?.tasks.filter((item) => item.status === "blocked").length ?? 0,
     decisions: workspace?.decisions.length ?? 0,
     runs: workspace?.agentRuns.length ?? 0,
   }), [workspace]);
 
-  async function submitAgent(event: FormEvent) {
-    event.preventDefault();
-    const message = agentInput.trim();
-    if (!workspace || !message || agentRunning) return;
-    setAgentRunning(true); setAgentOutput(""); setError(null);
-    try {
-      const result = await chatWithWikiAgent(workspace.workspace.id, message);
-      setAgentOutput(result.output); setAgentInput(""); await loadWorkspace(workspace.workspace.id, true);
-    } catch (err) { setAgentOutput(err instanceof Error ? err.message : "Agent execution failed."); }
-    finally { setAgentRunning(false); }
-  }
-
-  function onAgentKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") event.currentTarget.form?.requestSubmit();
-  }
+  async function refreshBriefing() { if (!workspace || briefingRunning) return; setBriefingRunning(true); setError(null); try { await generateBriefing(workspace.workspace.id); await loadWorkspace(workspace.workspace.id, true); } catch (err) { setError(err instanceof Error ? err.message : "Could not generate briefing."); } finally { setBriefingRunning(false); } }
 
   async function handleReset() {
     if (resetting || !window.confirm("Reset the workspace to its original demo data?")) return;
     setResetting(true);
-    try { await resetDemo(); setAgentOutput(""); setAgentInput(""); setTab("tasks"); const items=await listWorkspaces(); setWorkspaces(items); const initial=items.find((item)=>item.slug==="compa-friki")??items[0]; if(initial) await loadWorkspace(initial.id,true); }
+    try { await resetDemo(); setTab("tasks"); const items=await listWorkspaces(); setWorkspaces(items); const initial=items.find((item)=>item.slug==="compa-friki")??items[0]; if(initial) await loadWorkspace(initial.id,true); }
     catch (err) { setError(err instanceof Error ? err.message : "Could not reset the demo."); }
     finally { setResetting(false); }
   }
@@ -126,7 +111,7 @@ function WorkspaceApp({ onLogout }: { onLogout: () => void }) {
 
   function switchWorkspace(item: WorkspaceSummary) {
     if (item.id === workspace?.workspace.id) return;
-    setAgentOutput(""); setAgentInput(""); setLoading(true); setError(null);
+    setLoading(true); setError(null);
     const url = new URL(window.location.href); url.searchParams.set("workspace", item.slug); window.history.replaceState({}, "", url);
     void loadWorkspace(item.id);
   }
@@ -146,7 +131,7 @@ function WorkspaceApp({ onLogout }: { onLogout: () => void }) {
       const created = await createWorkspace({ name: newWorkspace.name.trim(), type: newWorkspace.type, description: newWorkspace.description.trim() || undefined });
       const items = await listWorkspaces();
       setWorkspaces(items); setShowNewWorkspace(false); setNewWorkspace({ name: "", type: "general", description: "" });
-      setAgentInput(""); setAgentOutput(""); setTab("tasks");
+      setTab("tasks");
       const url = new URL(window.location.href); url.searchParams.set("workspace", created.slug); window.history.replaceState({}, "", url);
       await loadWorkspace(created.id);
     } catch (err) { setError(err instanceof Error ? err.message : "Could not create workspace."); }
@@ -162,10 +147,10 @@ function WorkspaceApp({ onLogout }: { onLogout: () => void }) {
             <span><strong>Wiki Agent</strong><small>Shared memory</small></span>
           </a>
           <nav className="nav" aria-label="Primary navigation">
-            <button className="active"><Icon name="grid" />Overview</button>
-            <button onClick={() => setTab("tasks")}><Icon name="folder" />Projects</button>
-            <button onClick={() => setTab("knowledge")}><Icon name="book" />Knowledge</button>
-            <button onClick={() => setTab("runs")}><Icon name="spark" />Agent runs</button>
+            <button className={tab === "tasks" ? "active" : ""} onClick={() => setTab("tasks")} aria-current={tab === "tasks" ? "page" : undefined}><Icon name="grid" />Overview</button>
+            <button className={tab === "decisions" ? "active" : ""} onClick={() => setTab("decisions")} aria-current={tab === "decisions" ? "page" : undefined}><Icon name="folder" />Projects</button>
+            <button className={tab === "knowledge" ? "active" : ""} onClick={() => setTab("knowledge")} aria-current={tab === "knowledge" ? "page" : undefined}><Icon name="book" />Knowledge</button>
+            <button className={tab === "runs" ? "active" : ""} onClick={() => setTab("runs")} aria-current={tab === "runs" ? "page" : undefined}><Icon name="spark" />Agent runs</button>
           </nav>
           <section className="workspace-switcher" aria-label="Your workspaces">
             <span>Your workspaces</span>
@@ -194,11 +179,9 @@ function WorkspaceApp({ onLogout }: { onLogout: () => void }) {
 
         {error && <div className="error-banner" role="alert">{error}<button onClick={() => setError(null)} aria-label="Dismiss error">×</button></div>}
 
-        <section className="stats-grid" aria-label="Project overview">
-          <Stat label="Open work" value={stats.open} tone="blue" />
-          <Stat label="Blocked" value={stats.blocked} tone="orange" />
-          <Stat label="Decisions" value={stats.decisions} tone="violet" />
-          <Stat label="Agent runs" value={stats.runs} tone="green" />
+        <section className="progress-summary" aria-label="Workspace progress">
+          <div className="progress-summary-main"><span className="summary-label">Workspace progress</span><strong>{stats.done} of {stats.done + stats.open} tasks complete</strong><div className="progress-track"><span style={{ width: `${stats.done + stats.open ? (stats.done / (stats.done + stats.open)) * 100 : 0}%` }} /></div></div>
+          <div className="progress-summary-metrics"><span><b>{stats.open}</b> open</span><span><b>{stats.blocked}</b> blocked</span><span><b>{stats.decisions}</b> decisions</span></div>
         </section>
 
         <div className="content-grid">
@@ -224,17 +207,20 @@ function WorkspaceApp({ onLogout }: { onLogout: () => void }) {
             </div>
           </section>
 
-          <section className="agent-panel" aria-label="Persistent Wiki Agent">
-            <div className="agent-header"><div><div className="eyebrow"><span />Persistent agent</div><h2><span className="agent-orb"><Icon name="spark" /></span>Wiki Agent</h2></div><span className="agent-badge"><i />online</span></div>
-            <div className="agent-description"><p>This agent shares the same workspace state as humans and external WebMCP agents.</p><button className="agent-example" type="button" onClick={() => setAgentInput("Where did we leave this workspace?")}><span>Try asking</span>“Where did we leave this workspace?”</button></div>
-            <div className="agent-response" aria-live="polite">
-              {agentRunning ? <div className="thinking"><span/><span/><span/><em>Reading shared memory…</em></div> : agentOutput ? <p>{agentOutput}</p> : <div className="empty-agent"><Icon name="book" /><p>Ask about workspace context, recent changes, or what to do next.</p></div>}
+          <section className="agent-panel briefing-panel" aria-label="Resident Agent Briefing">
+            <div className="agent-header"><div><div className="eyebrow"><span />Continuity layer</div><h2>Resident Agent Briefing</h2></div><span className="agent-badge"><i />resident</span></div>
+            <div className="agent-description"><p>Continuity summary based on the current workspace state.</p></div>
+            <div className="briefing-content" aria-live="polite">
+              {briefingRunning ? <div className="thinking"><span/><span/><span/><em>Reviewing workspace state…</em></div> : workspace.briefing ? <>
+                <BriefingSection title="Current focus" value={workspace.briefing.current_focus} />
+                <BriefingSection title="Recent changes" items={workspace.briefing.recent_changes} />
+                <BriefingSection title="Blockers" items={workspace.briefing.blockers} />
+                <BriefingSection title="Pending review" items={workspace.briefing.pending_review} />
+                <BriefingSection title="Suggested next action" value={workspace.briefing.suggested_next_action} accent />
+                <time className="briefing-time" dateTime={workspace.briefing.generated_at}>Updated {relativeDate(workspace.briefing.generated_at)}</time>
+              </> : <div className="empty-agent"><Icon name="book" /><p>Generate a continuity summary from the current workspace state.</p></div>}
             </div>
-            <form className="agent-form" onSubmit={submitAgent}>
-              <label className="sr-only" htmlFor="agent-prompt">Message the persistent Wiki Agent</label>
-              <textarea id="agent-prompt" value={agentInput} onChange={(event) => setAgentInput(event.target.value)} onKeyDown={onAgentKeyDown} placeholder="Ask the persistent Wiki Agent…" rows={3} disabled={agentRunning} />
-              <div className="form-footer"><span><kbd>Ctrl</kbd> + <kbd>Enter</kbd></span><button type="submit" disabled={agentRunning || !agentInput.trim()}>{agentRunning ? "Running…" : "Run agent"}<Icon name="send" /></button></div>
-            </form>
+            <div className="briefing-actions"><button type="button" onClick={() => void refreshBriefing()} disabled={briefingRunning}>{briefingRunning ? "Generating…" : workspace.briefing ? "Refresh briefing" : "Generate briefing"}</button></div>
           </section>
         </div>
         <footer className="app-footer"><span><Icon name="lock" />Workspace state persists across agents and sessions</span><span>One workspace. Many agents.</span></footer>
@@ -253,6 +239,10 @@ function WorkspaceApp({ onLogout }: { onLogout: () => void }) {
       </div>}
     </div>
   );
+}
+
+function BriefingSection({ title, value, items, accent = false }: { title: string; value?: string; items?: string[]; accent?: boolean }) {
+  return <section className={`briefing-section ${accent ? "accent" : ""}`}><h3>{title}</h3>{value ? <p>{value}</p> : items?.length ? <ul>{items.map((item, index) => <li key={`${title}-${index}`}>{item}</li>)}</ul> : <p className="briefing-none">None</p>}</section>;
 }
 
 function LoginScreen({ onAuthenticated }: { onAuthenticated: () => void }) {

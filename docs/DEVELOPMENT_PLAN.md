@@ -21,8 +21,8 @@
 3. Check `http://localhost:5173` and `http://localhost:3001/api/health`.
 4. Confirm `/api/bootstrap` returns seeded Compa Friki, then create a temporary workspace and verify it is selectable.
 5. Create and update state through the UI/API before adding an OpenAI key.
-6. Configure `OPENAI_API_KEY`, chat with the Wiki Agent, restart, and test a contextual follow-up.
-7. In a WebMCP-capable environment, read context, add a decision, create a task, and confirm the dashboard and internal agent both see the changes.
+6. Configure `OPENAI_API_KEY`, generate a Resident Agent Briefing, restart, and verify that it persists.
+7. In a WebMCP-capable environment, read context, propose a decision, create a task, approve as a human, and confirm the refreshed briefing sees the changes.
 8. Reset and verify the temporary workspace is removed while seeded workspaces are restored.
 9. Run `npm run check`, then `npm start`; confirm `/` and `/api/health` work from the production server.
 

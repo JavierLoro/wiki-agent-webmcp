@@ -90,6 +90,17 @@ export interface DecisionProposal {
   created_at: string;
 }
 
+export interface WorkspaceBriefing {
+  workspace_id: string;
+  current_focus: string;
+  recent_changes: string[];
+  blockers: string[];
+  pending_review: string[];
+  suggested_next_action: string;
+  generated_at: string;
+  agent_run_id: string | null;
+}
+
 export interface Workspace {
   workspace: WorkspaceInfo;
   tasks: Task[];
@@ -99,4 +110,5 @@ export interface Workspace {
   activity: ActivityEvent[];
   children: WorkspaceInfo[];
   decisionProposals: DecisionProposal[];
+  briefing: WorkspaceBriefing | null;
 }

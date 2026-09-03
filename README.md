@@ -12,7 +12,7 @@ Workspace Platform moves continuity into structured shared state that humans, br
 
 Workspaces outlive conversations. They preserve tasks, decisions, typed knowledge, activity, execution history, and conversational continuity, so each agent can begin from durable state instead of reconstructing it from chat.
 
-A person works through the visual dashboard. A browser agent discovers semantic operations through WebMCP. The server-side Wiki Agent uses the same SQLite data and retains its conversation between restarts. Changes made by any actor become visible to the others.
+A person works through the visual dashboard. A browser agent discovers semantic operations through WebMCP. The Resident Wiki Agent produces a persistent operational briefing from the same SQLite state. Changes made by any actor become visible to the others.
 
 It is designed for makers, research teams, product teams, and agent builders who need several people and agents to continue the same body of work without repeatedly rebuilding context.
 
@@ -42,10 +42,11 @@ These are domain operations, not automated clicks. WebMCP is progressive enhance
 ## Architecture
 
 ```text
-Human ──► React dashboard ──► Express API ──► SQLite
-              ▲                    ▲            ▲
-              │                    │            │
-Browser agent ── WebMCP tools      └── Wiki Agent + persistent session
+Human ───────────────► Visual UI ───────────────┐
+External AI Agent ───► WebMCP ─────────────────┤
+Resident Wiki Agent ─► Continuity Briefing ────┤
+                                                ▼
+                                  Shared Workspace State
 ```
 
 Structured workspace data is authoritative. Conversational memory supports continuity but never silently overrides recorded workspace state.
@@ -142,7 +143,7 @@ SQLite at ./data/wiki-agent.db
 
 In Cloudflare Tunnel, publish a hostname such as `wiki-agent.example.com` and point its HTTP service to `http://IP_DEL_SERVIDOR:3001`. Cloudflare provides the public HTTPS reverse proxy and TLS termination; the container exposes only HTTP on the internal network.
 
-The challenge deployment intentionally has no authentication. Restrict direct access to port 3001 at the network/firewall layer as appropriate and expose the public application through the tunnel.
+The deployment uses the password configured in `.env`. Restrict direct access to port 3001 at the network/firewall layer as appropriate and expose the public application through the tunnel.
 
 ## Try the collaboration flow
 
@@ -154,7 +155,7 @@ Then:
 
 > In Compa Friki, propose LP102228 as the battery, store its dimensions as a finding, and create a high-priority validation task. Do not confirm the decision.
 
-The browser agent should call `workspace.propose_decision`, `workspace.add_knowledge`, and `workspace.create_task`; the dashboard should refresh immediately. Approve the proposal manually, then ask the integrated Wiki Agent what changed to demonstrate that both agents share the same state.
+The browser agent should call `workspace.propose_decision`, `workspace.add_knowledge`, and `workspace.create_task`; the dashboard should refresh immediately. Approve the proposal manually, then click **Refresh briefing** to demonstrate that both agents share the same state.
 
 Use **Reset demo** in the UI, or `POST /api/demo/reset`, to restore the seeded Compa Friki and LockerBoard workspaces. Reset also removes user-created test workspaces, so do not use it for data you need to keep.
 
@@ -176,9 +177,9 @@ Suggested test:
 3. Ask: “In Compa Friki, propose LP102228 as the battery, store its dimensions as a finding, and create a high-priority validation task. Do not confirm the decision.”
 4. Confirm the UI shows a pending proposal, knowledge item, task, and WebMCP activity.
 5. Approve the proposal manually.
-6. Ask Wiki Agent: “What changed in this workspace and what should I do next?”
+6. Click **Refresh briefing** and inspect current focus, changes, blockers, pending review, and the suggested next action.
 
-Wiki Agent should recognize the changes despite not participating in the browser-agent conversation. The public demo uses shared state; use **Reset demo** before testing if another visitor has modified it.
+The Resident Wiki Agent should recognize the changes despite never participating in the browser-agent conversation. It is not the source of truth: it interprets the same structured state as everyone else. Use **Reset demo** before testing if another visitor has modified it.
 
 The submission story is: create a workspace for any real body of work, let humans and multiple agents share it, keep recommendations reviewable, and preserve an attributable history. Compa Friki is the concise proof—not the limit of the product.
 
@@ -190,7 +191,7 @@ This repository was created and meaningfully developed during the WebMCP Challen
 - semantic WebMCP tools
 - persistent activity auditing and actor attribution
 - agent decision proposals with human approval and rejection
-- persistent Wiki Agent integration
+- Resident Wiki Agent continuity briefings with per-workspace persistence
 
 Relevant history:
 

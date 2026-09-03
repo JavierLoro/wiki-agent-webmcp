@@ -1,4 +1,4 @@
-import type { ActivityEvent, Decision, DecisionProposal, KnowledgeItem, KnowledgeType, Task, TaskPriority, TaskStatus, Workspace, WorkspaceInfo, WorkspaceSummary } from "./types";
+import type { ActivityEvent, Decision, DecisionProposal, KnowledgeItem, KnowledgeType, Task, TaskPriority, TaskStatus, Workspace, WorkspaceBriefing, WorkspaceInfo, WorkspaceSummary } from "./types";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -70,6 +70,7 @@ export const addKnowledge = (input: {
 
 export const chatWithWikiAgent = (workspaceId: string, message: string) =>
   request<{ output: string }>("/api/agent/chat", { method: "POST", body: JSON.stringify({ workspaceId, message }) });
+export const generateBriefing = (workspaceId: string) => request<WorkspaceBriefing>("/api/agent/briefing", { method: "POST", body: JSON.stringify({ workspaceId }) });
 
 export const resetDemo = () => request<{ ok: boolean }>("/api/demo/reset", { method: "POST" });
 

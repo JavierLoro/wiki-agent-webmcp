@@ -8,7 +8,7 @@ Workspace Platform separates durable workspace memory from agent memory. Wiki Ag
 
 - **Human:** uses the dashboard to inspect tasks, decisions, typed knowledge, and agent activity.
 - **Browser agent:** reads and changes structured state through WebMCP.
-- **Persistent Wiki Agent:** runs server-side with the OpenAI Agents SDK, a SQLite-backed session, and workspace tools.
+- **Resident Wiki Agent:** runs server-side with the OpenAI Agents SDK and a SQLite-backed session, producing read-only continuity briefings from shared state.
 - **Specialist agents (future):** ephemeral research, coding, QA, or documentation workers whose results return to the workspace.
 
 Information precedence is: explicit human decision, structured workspace state, execution records, then conversational memory. Conversation history must not silently override structured state.
@@ -24,6 +24,7 @@ Workspace (type, context, optional parent)
 ├── Child Workspaces
 ├── Activity Events
 ├── Agent Runs
+├── Workspace Briefing
 └── Agent Session
 ```
 
@@ -37,14 +38,12 @@ Human request → Browser agent → WebMCP tool → HTTP API → SQLite
 
 Successful WebMCP writes emit `wikiagent:changed`; the React application listens and reloads workspace state.
 
-## Internal agent flow
+## Resident agent flow
 
 ```text
-Wiki Agent UI → POST /api/agent/chat → persistent Session → Wiki Agent
-                                                        ├→ list/get_workspace_context
-                                                        ├→ create/update_task
-                                                        ├→ add_decision
-                                                        └→ add_knowledge
+Briefing UI → POST /api/agent/briefing → persistent Session → Resident Wiki Agent
+                                                          ↓
+                                            workspace_briefings + agent_runs
 ```
 
 Agent runs and session items are persisted independently from structured project entities.
@@ -74,4 +73,4 @@ Without WebMCP, an agent must infer layout and simulate a fragile sequence of cl
 
 ## Future direction
 
-The Workspace Platform can support hardware, software, research, campaign, and nested workspaces through one shared core. Wiki Agent can orchestrate specialist research, coding, and QA agents, while each worker returns evidence, artifacts, proposed decisions, and follow-up tasks to the same human-governed state.
+The Workspace Platform can support hardware, software, research, campaign, and nested workspaces through one shared core. External agents can act, humans authorize, and the Resident Wiki Agent interprets continuity. The resident agent is not the source of truth; it reads the same structured state as everyone else.
